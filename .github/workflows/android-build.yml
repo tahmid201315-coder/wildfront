@@ -133,18 +133,22 @@ jobs:
 
       - name: Verify the APK exists and is valid
         run: |
-          set -euo pipefail
-          if [ ! -f "${APK_PATH}" ]; then echo "::error::APK was not created at ${APK_PATH}"; exit 1; fi
+          set -eu
+          fail() { echo "::error::$1"; exit 1; }
+          [ -f "${APK_PATH}" ] || fail "APK was not created at ${APK_PATH}"
           SIZE=$(stat -c %s "${APK_PATH}")
           echo "APK size: $SIZE bytes"
-          if [ "$SIZE" -lt 1000000 ]; then echo "::error::APK is suspiciously small ($SIZE bytes)"; exit 1; fi
-          unzip -tq "${APK_PATH}" > /dev/null || { echo "::error::APK is not a valid zip archive"; exit 1; }
-          unzip -l "${APK_PATH}" | grep -q "AndroidManifest.xml" || { echo "::error::AndroidManifest.xml missing from APK"; exit 1; }
-          unzip -l "${APK_PATH}" | grep -q "lib/arm64-v8a/" || { echo "::error::arm64-v8a native libraries missing"; exit 1; }
+          [ "$SIZE" -ge 1000000 ] || fail "APK is suspiciously small ($SIZE bytes)"
+          unzip -tq "${APK_PATH}" > logs/apk-zip-test.log 2>&1 || fail "APK is not a valid zip archive"
+          # Write listings to files first; piping into grep -q can trip pipefail via SIGPIPE.
+          unzip -l "${APK_PATH}" > logs/apk-contents.log
+          grep -q "AndroidManifest.xml" logs/apk-contents.log || fail "AndroidManifest.xml missing from APK"
+          grep -q "lib/arm64-v8a/" logs/apk-contents.log || fail "arm64-v8a native libraries missing"
           BT="${ANDROID_SDK}/build-tools/${ANDROID_BUILD_TOOLS}"
-          "$BT/aapt" dump badging "${APK_PATH}" | head -5 | tee logs/apk-info.log
-          grep -q "package: name='com.wildfront.creaturesurvival'" logs/apk-info.log || { echo "::error::Unexpected package name in APK"; exit 1; }
-          "$BT/apksigner" verify "${APK_PATH}" && echo "APK signature verified (debug key)"
+          "$BT/aapt" dump badging "${APK_PATH}" > logs/apk-info.log 2>&1 || fail "aapt could not read the APK: $(head -c 300 logs/apk-info.log)"
+          grep -q "package: name='com.wildfront.creaturesurvival'" logs/apk-info.log || fail "Unexpected package name: $(grep -m1 '^package:' logs/apk-info.log)"
+          "$BT/apksigner" verify "${APK_PATH}" > logs/apk-signature.log 2>&1 || fail "APK signature check failed: $(head -c 300 logs/apk-signature.log)"
+          echo "APK checks passed (valid zip, manifest, arm64 libs, package name, signature)."
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4.4.3
