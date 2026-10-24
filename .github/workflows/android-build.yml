@@ -145,7 +145,7 @@ jobs:
           grep -q "AndroidManifest.xml" logs/apk-contents.log || fail "AndroidManifest.xml missing from APK"
           grep -q "lib/arm64-v8a/" logs/apk-contents.log || fail "arm64-v8a native libraries missing"
           BT="${ANDROID_SDK}/build-tools/${ANDROID_BUILD_TOOLS}"
-          "$BT/aapt" dump badging "${APK_PATH}" > logs/apk-info.log 2>&1 || fail "aapt could not read the APK: $(head -c 300 logs/apk-info.log)"
+          "$BT/aapt2" dump badging "${APK_PATH}" > logs/apk-info.log 2>&1 || fail "aapt2 could not read the APK: $(head -c 300 logs/apk-info.log)"
           grep -q "package: name='com.wildfront.creaturesurvival'" logs/apk-info.log || fail "Unexpected package name: $(grep -m1 '^package:' logs/apk-info.log)"
           "$BT/apksigner" verify "${APK_PATH}" > logs/apk-signature.log 2>&1 || fail "APK signature check failed: $(head -c 300 logs/apk-signature.log)"
           echo "APK checks passed (valid zip, manifest, arm64 libs, package name, signature)."
