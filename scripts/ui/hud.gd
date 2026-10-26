@@ -8,6 +8,9 @@ const WG = preload("res://scripts/world/world_gen.gd")
 const DW = preload("res://scripts/core/data_world.gd")
 
 signal panel_requested(name: String)
+signal storage_requested(box: Node)
+signal log_requested(id: String)
+signal dialogue_requested(id: String)
 
 var world: Node = null
 var player: Node = null
@@ -19,6 +22,11 @@ var b_interact: Control
 var b_sprint: Control
 var b_crouch: Control
 var small_buttons: Dictionary = {}
+var build_buttons: Array = []
+var b_bconfirm: Control
+var b_brotate: Control
+var b_bremove: Control
+var b_bcancel: Control
 var _toasts: Array = []              # [text, kind, age]
 var _t: float = 0.0
 var _tracker_cache: String = ""
@@ -61,6 +69,15 @@ func _ready() -> void:
 		var nm: String = def[1]
 		b.pressed.connect(func(): panel_requested.emit(nm))
 		small_buttons[nm] = b
+	b_bconfirm = _mk("check", "Place", 60.0, Color(0.35, 0.8, 0.45))
+	b_bconfirm.pressed.connect(func(): if world: world.builder.confirm())
+	b_brotate = _mk("rotate", "Rotate", 46.0, Color(0.5, 0.65, 0.95))
+	b_brotate.pressed.connect(func(): if world: world.builder.rotate_piece())
+	b_bremove = _mk("close", "Dismantle", 46.0, Color(0.95, 0.65, 0.25))
+	b_bremove.pressed.connect(func(): if world: world.builder.toggle_remove())
+	b_bcancel = _mk("pause", "Done", 40.0, Color(0.7, 0.7, 0.75))
+	b_bcancel.pressed.connect(func(): if world: world.builder.cancel())
+	build_buttons = [b_bconfirm, b_brotate, b_bremove, b_bcancel]
 	Game.notify.connect(_on_notify)
 	Game.leveled_up.connect(func(lv): banner("LEVEL %d" % lv, "A skill point is waiting."))
 	Game.region_entered.connect(_on_region)
@@ -134,6 +151,10 @@ func _layout() -> void:
 	place.call(b_interact, Vector2(-160, -118))
 	place.call(b_sprint, Vector2(-290, 52))
 	place.call(b_crouch, Vector2(-275, -50))
+	place.call(b_bconfirm, Vector2(0, 0))
+	place.call(b_brotate, Vector2(-140, 30))
+	place.call(b_bremove, Vector2(-20, -140))
+	place.call(b_bcancel, Vector2(-150, -120))
 	var names := ["pause", "map", "inventory", "craft", "quests"]
 	for i in names.size():
 		var b: Control = small_buttons[names[i]]
@@ -158,6 +179,11 @@ func _process(delta: float) -> void:
 	if Game.health < _last_hp - 0.5:
 		_hit_t = 0.4
 	_last_hp = Game.health
+	var building: bool = Game.state == Game.State.BUILDING
+	for b in [b_attack, b_jump, b_dodge, b_interact, b_sprint, b_crouch]:
+		b.visible = not building
+	for b in build_buttons:
+		b.visible = building
 	if player:
 		var has_target: bool = player.prompt_target != null
 		b_interact.enabled = has_target
@@ -219,8 +245,19 @@ func _draw() -> void:
 		draw_rect(rect, Color(0.04, 0.07, 0.08, 0.7 * a))
 		draw_string(font, Vector2(rect.position.x + 14, ty), String(t[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color(col.r, col.g, col.b, a))
 		ty += 38
+	# build hint
+	if Game.state == Game.State.BUILDING and world and world.builder.active:
+		var bm: Node = world.builder
+		var msg: String = "Dismantle: aim at a structure" if bm.remove_mode else String(Data.structures[bm.sid]["name"])
+		if not bm.valid and bm.reason != "":
+			msg += "  -  " + bm.reason
+		var mw := font.get_string_size(msg, HORIZONTAL_ALIGNMENT_CENTER, -1, 24).x
+		var mr := Rect2(s.x * 0.5 - mw * 0.5 - 18, s.y * 0.14, mw + 36, 40)
+		draw_rect(mr, Color(0.04, 0.07, 0.08, 0.8))
+		draw_rect(mr, UI.COL_GOOD if bm.valid else UI.COL_BAD, false, 2.0)
+		draw_string(font, Vector2(mr.position.x + 18, mr.position.y + 28), msg, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, UI.COL_TEXT)
 	# interaction prompt
-	if player.prompt_target != null:
+	if player.prompt_target != null and Game.state != Game.State.BUILDING:
 		var pt: String = player.prompt_text
 		var pw := font.get_string_size(pt, HORIZONTAL_ALIGNMENT_CENTER, -1, 24).x
 		var pr := Rect2(s.x * 0.5 - pw * 0.5 - 18, s.y * 0.66, pw + 36, 40)

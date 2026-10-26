@@ -251,6 +251,9 @@ func stat(key: String) -> int:
 
 func add_stat(key: String, n: int = 1) -> void:
 	stats[key] = stat(key) + n
+	if (key.begins_with("craft:") or key.begins_with("kill:")) and not key.ends_with("*"):
+		var wk := key.split(":")[0] + ":*"
+		stats[wk] = stat(wk) + n
 	progress_changed.emit()
 
 

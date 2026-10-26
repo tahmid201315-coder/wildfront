@@ -212,6 +212,7 @@ func _physics_process(delta: float) -> void:
 	_environment(delta)
 	_actions(delta)
 	_movement(delta)
+	_step_up()
 	move_and_slide()
 	_post_move(delta)
 	_survival(delta)
@@ -707,6 +708,24 @@ func _movement(delta: float) -> void:
 		model.speed01 = 1.0
 	else:
 		model.speed01 = clampf(speed_xz / SPRINT_SPEED * 1.45, 0.0, 1.0) if speed_xz > 0.2 else 0.0
+
+
+func _step_up() -> void:
+	if not is_on_floor() or swimming or action == "dodge":
+		return
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	if hv.length() < 0.6:
+		return
+	var motion := hv.normalized() * 0.5
+	if not test_move(global_transform, motion):
+		return
+	var up := Vector3(0, 0.7, 0)
+	if test_move(global_transform, up):
+		return
+	var raised := global_transform.translated(up)
+	if test_move(raised, motion):
+		return
+	global_position += up * 0.9 + motion * 0.5
 
 
 func _post_move(delta: float) -> void:

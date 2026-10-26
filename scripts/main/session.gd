@@ -9,6 +9,9 @@ const Hud = preload("res://scripts/ui/hud.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const ConfirmDialog = preload("res://scripts/ui/confirm_dialog.gd")
 const Modal = preload("res://scripts/ui/modal.gd")
+const InventoryPanel = preload("res://scripts/ui/inventory_panel.gd")
+const CraftPanel = preload("res://scripts/ui/craft_panel.gd")
+const StoragePanel = preload("res://scripts/ui/storage_panel.gd")
 
 var world: Node3D
 var hud: Control
@@ -120,13 +123,20 @@ func _setup_ui() -> void:
 	ui_layer.add_child(settings)
 	confirm = ConfirmDialog.new()
 	ui_layer.add_child(confirm)
+	for pair in [["inventory", InventoryPanel], ["craft", CraftPanel]]:
+		var pn: Control = pair[1].new()
+		ui_layer.add_child(pn)
+		panels[pair[0]] = pn
+	var sp: Control = StoragePanel.new()
+	ui_layer.add_child(sp)
+	hud.storage_requested.connect(func(b): sp.show_for(b))
 	pause_menu = _make_pause()
 	ui_layer.add_child(pause_menu)
 	Game.state_changed.connect(_on_state)
 
 
 func open_panel(name: String) -> void:
-	if not Game.is_playing():
+	if Game.state != Game.State.PLAY:
 		return
 	if name == "pause":
 		pause_menu.open()

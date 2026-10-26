@@ -6,6 +6,8 @@ uniform float rim_strength = 0.25;
 uniform float emission_boost = 0.0;
 uniform vec3 rim_color : source_color = vec3(0.75, 0.85, 1.0);
 uniform float world_noise = 0.12;
+uniform vec3 flash_col : source_color = vec3(1.0, 0.2, 0.1);
+uniform float flash_amt = 0.0;
 
 varying vec3 v_col;
 varying vec3 v_wpos;
@@ -41,6 +43,6 @@ void fragment() {
 	ROUGHNESS = 0.88;
 	SPECULAR = 0.15;
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	EMISSION = rim_color * fres * rim_strength * 0.35 + c * emission_boost;
+	EMISSION = rim_color * fres * rim_strength * 0.35 + c * emission_boost + flash_col * flash_amt;
 	if (!FRONT_FACING) { NORMAL = -NORMAL; }
 }

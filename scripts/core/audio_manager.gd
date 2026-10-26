@@ -93,6 +93,11 @@ func _finish(res: Dictionary) -> void:
 	sounds = res["sounds"]
 	music = res["music"]
 	ambience = res["ambience"]
+	var alias := {"place": "build", "dismantle": "build", "enemy_die": "death", "growl": "growl_stalker", "roar": "growl_brute",
+		"slam": "boss_slam", "wail": "hum_wraith", "blink": "telegraph", "machine_on": "whir_sentinel", "equip": "click"}
+	for a in alias:
+		if not sounds.has(a) and sounds.has(alias[a]):
+			sounds[a] = sounds[alias[a]]
 	for k in ambience:
 		if not _amb_players.has(k):
 			var p := AudioStreamPlayer.new()

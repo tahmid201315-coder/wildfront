@@ -5,7 +5,7 @@ const WG = preload("res://scripts/world/world_gen.gd")
 
 var rid: String = ""
 var def: Dictionary = {}
-var hits_left: int = 1
+var hits_left: float = 1.0
 var depleted: bool = false
 var respawn_at: float = 0.0       # play_seconds when it comes back
 var handle = null                 # Decor.Handle
@@ -19,7 +19,7 @@ func setup(id: String, d: Dictionary, nid: int) -> void:
 	rid = id
 	def = d
 	node_id = nid
-	hits_left = int(d["hits"])
+	hits_left = float(d["hits"])
 	hold_repeat = true
 	interact_radius = 1.9 + float(d["radius"])
 	aim_offset = Vector3(0, 0.8, 0)
@@ -98,11 +98,10 @@ func apply_gather(player: Node) -> void:
 	if depleted:
 		return
 	var tool := String(def["tool"])
-	var dmg := 1
+	var dmg := 1.0
 	if tool != "":
 		var i: int = Inv.best_tool(tool)
-		var power := int(Data.items[Inv.slots[i]["id"]].get("power", 1))
-		dmg = maxi(power, 1)
+		dmg = float(Data.items[Inv.slots[i]["id"]].get("power", 1.0))
 		Inv.damage_slot(i, 1)
 	hits_left -= dmg
 	shake_t = 0.3
@@ -154,7 +153,7 @@ func deplete(announce: bool) -> void:
 func restore() -> void:
 	depleted = false
 	enabled = true
-	hits_left = int(def["hits"])
+	hits_left = float(def["hits"])
 	if handle:
 		handle.set_visible_inst(true)
 

@@ -88,7 +88,7 @@ func apply_time(delta: float) -> void:
 	sun.light_energy = lerpf(0.0, 1.0, day) * lerpf(1.0, 0.45, overcast)
 	if elev < -0.1:
 		# moon light from the opposite side
-		sun.light_energy = 0.18 * night_amount * lerpf(1.0, 0.5, overcast)
+		sun.light_energy = 0.5 * night_amount * lerpf(1.0, 0.5, overcast)
 		sun.light_color = Color(0.55, 0.65, 1.0)
 		sun.look_at_from_position(Vector3.ZERO, sun_dir, Vector3.UP)
 	var horizon_day := Color(0.74, 0.84, 0.92)
@@ -111,11 +111,11 @@ func apply_time(delta: float) -> void:
 	sky_mat.set_shader_parameter("sun_dir", sun_dir)
 	sky_mat.set_shader_parameter("cloud_color", Color(1, 0.97, 0.94).lerp(Color(1.0, 0.7, 0.55), golden))
 	var amb_day := Color(0.55, 0.62, 0.72)
-	var amb_night := Color(0.12, 0.16, 0.30)
+	var amb_night := Color(0.26, 0.32, 0.52)
 	var amb := amb_night.lerp(amb_day, day)
 	amb = amb.lerp(Color(1.0, 0.7, 0.55), golden * 0.35)
 	env.ambient_light_color = amb * region_tint
-	env.ambient_light_energy = lerpf(0.62, 0.5, overcast)
+	env.ambient_light_energy = lerpf(0.62, 0.5, overcast) * lerpf(1.25, 1.0, day)
 	var fog_c := hor.lerp(region_fog_color, 0.45)
 	env.fog_light_color = fog_c
 	env.fog_sun_scatter = 0.12 * day

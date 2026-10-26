@@ -9,6 +9,9 @@ const Decor = preload("res://scripts/world/decor.gd")
 const ResourceNode = preload("res://scripts/world/resource_node.gd")
 const Pickup = preload("res://scripts/world/pickup.gd")
 const PlayerScript = preload("res://scripts/player/player.gd")
+const BuildManager = preload("res://scripts/building/build_manager.gd")
+const Spawner = preload("res://scripts/world/spawner.gd")
+const Projectile = preload("res://scripts/enemies/projectile.gd")
 
 signal loading_progress(f: float, text: String)
 signal loaded
@@ -28,6 +31,12 @@ var resources: Array = []
 var _hash: Dictionary = {}                 # Vector2i -> Array of interactables
 var _active_col: Dictionary = {}           # node -> true
 var enemies: Array = []
+var animals: Array = []
+var spawner: Node = null
+var sites = null
+var _site_acc: float = 0.0
+var _dmg_labels: Array = []
+var _dmg_i: int = 0
 var boss_nodes: Array = []
 var projectiles: Array = []
 var _burst_pool: Array = []
@@ -42,6 +51,9 @@ var fog_target: float = 0.0016
 var _rng := RandomNumberGenerator.new()
 var warm_sources: Array = []               # [Vector3 pos, radius, strength]
 var metal_zones: Array = []                # [Vector2 pos, radius]
+var builder: Node = null
+var _shelter_acc: float = 0.0
+var sleeping: bool = false
 
 
 func _ready() -> void:
@@ -99,6 +111,11 @@ func build(from_save: bool) -> void:
 	_build_sites()
 	loading_progress.emit(0.9, "Waking the island")
 	await get_tree().process_frame
+	build_mgr_setup()
+	spawner = Spawner.new()
+	spawner.world = self
+	add_child(spawner)
+	spawner.generate()
 	_make_player()
 	_make_overlays()
 	ready_done = true
@@ -107,7 +124,91 @@ func build(from_save: bool) -> void:
 
 
 func _build_sites() -> void:
-	pass
+	sites = preload("res://scripts/world/sites.gd").new()
+	sites.build(self)
+
+
+func pylon_next() -> int:
+	if sites == null:
+		return 0
+	for i in 3:
+		if not Game.flag("pylon_%d" % i):
+			return i
+	return 3
+
+
+func pylon_reset() -> void:
+	for i in 3:
+		Game.set_flag("pylon_%d" % i, false)
+	Game.stats["interact:pylon"] = 0
+	if sites:
+		for py in sites.pylons:
+			py.active = false
+
+
+func build_mgr_setup() -> void:
+	builder = BuildManager.new()
+	builder.world = self
+	add_child(builder)
+
+
+func begin_build(sid: String) -> void:
+	builder.begin(sid)
+
+
+func station_near(station: String) -> bool:
+	if player == null:
+		return false
+	var want: Array = [station]
+	if station == "campfire":
+		want = ["campfire", "cooking"]
+	for s in builder.structures:
+		if is_instance_valid(s) and s.sid in want and s.global_position.distance_to(player.global_position) < 7.0:
+			return true
+	return false
+
+
+func update_shelter_flag() -> void:
+	if player and builder.is_sheltered(player.global_position):
+		Game.set_flag("shelter", true)
+
+
+func open_storage(_s: Node) -> void:
+	if hud:
+		hud.storage_requested.emit(_s)
+
+
+func sleep_at(_bed: Node) -> void:
+	if sleeping:
+		return
+	var night: float = sky.night_amount
+	if night < 0.4:
+		Game.toast("You rest a while. (Sleep is only possible at night.)", "info")
+		return
+	sleeping = true
+	var cl := CanvasLayer.new()
+	cl.layer = 20
+	add_child(cl)
+	var r := ColorRect.new()
+	r.color = Color(0, 0, 0, 0)
+	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(r)
+	var tw := create_tween()
+	tw.tween_property(r, "color:a", 1.0, 0.8)
+	tw.tween_callback(func():
+		Game.time_of_day = 0.27
+		Game.day_count += 1
+		Game.health = minf(Game.health + 40.0, Game.max_health)
+		Game.hunger = maxf(Game.hunger - 12.0, 10.0)
+		Game.stamina = 100.0
+		Game.add_stat("sleep")
+		save_now(true))
+	tw.tween_property(r, "color:a", 0.0, 1.2)
+	tw.tween_callback(func():
+		cl.queue_free()
+		sleeping = false
+		Game.toast("You wake at dawn, rested.", "info"))
 
 
 func _make_player() -> void:
@@ -316,7 +417,11 @@ func enemies_near(p: Vector3, r: float) -> Array:
 
 
 func hittables_near(p: Vector3, r: float) -> Array:
-	return enemies_near(p, r)
+	var out := enemies_near(p, r)
+	for a in animals:
+		if is_instance_valid(a) and a.alive and a.global_position.distance_to(p) < r:
+			out.append(a)
+	return out
 
 
 func is_cutscene() -> bool:
@@ -349,8 +454,34 @@ func temperature_offset(p: Vector3) -> float:
 	return off
 
 
-func spawn_projectile(_origin: Vector3, _dir: Vector3, _dmg: float, _from_player: bool, _speed: float, _col: Color, _owner: Node) -> void:
-	pass
+func spawn_projectile(origin: Vector3, dir: Vector3, dmg: float, from_player: bool, speed: float, col: Color, owner_node: Node) -> void:
+	var pr := Projectile.new()
+	add_child(pr)
+	pr.setup(origin, dir, dmg, from_player, speed, col, owner_node)
+	projectiles.append(pr)
+
+
+## Floating damage number.
+func show_damage(pos: Vector3, amount: float, crit: bool) -> void:
+	if _dmg_labels.size() < 10:
+		var l := Label3D.new()
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.no_depth_test = true
+		l.pixel_size = 0.01
+		l.font_size = 48
+		l.outline_size = 12
+		add_child(l)
+		_dmg_labels.append(l)
+	var lab: Label3D = _dmg_labels[_dmg_i % _dmg_labels.size()]
+	_dmg_i += 1
+	lab.text = str(int(round(amount)))
+	lab.modulate = Color(1.0, 0.85, 0.3) if crit else Color(1, 1, 1)
+	lab.scale = Vector3.ONE * (1.4 if crit else 1.0)
+	lab.global_position = pos
+	lab.visible = true
+	var tw := create_tween()
+	tw.tween_property(lab, "global_position:y", pos.y + 1.2, 0.7)
+	tw.tween_callback(func(): lab.visible = false)
 
 
 func drop_pickup(id: String, n: int) -> void:
@@ -408,7 +539,7 @@ func serialize_world() -> Dictionary:
 		if r.depleted:
 			dep.append([r.node_id, maxf(r.respawn_at - Game.play_seconds, 1.0)])
 	var pp := player.global_position
-	return {"player": [pp.x, pp.y, pp.z, player.facing_yaw], "depleted": dep}
+	return {"player": [pp.x, pp.y, pp.z, player.facing_yaw], "depleted": dep, "structures": builder.serialize(), "dens": spawner.serialize()}
 
 
 func apply_world(d: Dictionary) -> void:
@@ -421,6 +552,8 @@ func apply_world(d: Dictionary) -> void:
 			var r: ResourceNode = byid[id]
 			r.deplete(false)
 			r.respawn_at = Game.play_seconds + float(e[1])
+	builder.restore(d.get("structures", []))
+	spawner.restore(d.get("dens", []))
 	var pl: Array = d.get("player", [])
 	if pl.size() >= 4:
 		var x := float(pl[0])
@@ -454,6 +587,15 @@ func player_moved(p: Vector3) -> void:
 func _process(delta: float) -> void:
 	if not ready_done:
 		return
+	_site_acc += delta
+	if _site_acc > 0.5 and player:
+		_site_acc = 0.0
+		var pp := Vector2(player.global_position.x, player.global_position.z)
+		for sid in DW.SITES:
+			if not Game.sites_found.has(sid) and pp.distance_to(DW.SITES[sid]["pos"]) < float(DW.SITES[sid]["flat"]) + 12.0:
+				Game.found_site(sid)
+				if hud:
+					hud.banner(String(DW.SITES[sid]["name"]).to_upper(), "Discovered")
 	if Game.is_playing() or Game.state == Game.State.BUILDING:
 		var rate: float = 1.0 / float(sky.day_length)
 		Game.time_of_day += delta * rate
@@ -480,6 +622,10 @@ func _process(delta: float) -> void:
 			fog = 0.0030
 			fcol = Color(0.45, 0.55, 0.72)
 	sky.update(delta, fog, fcol, tint, 0.0)
+	_shelter_acc += delta
+	if _shelter_acc > 1.0:
+		_shelter_acc = 0.0
+		update_shelter_flag()
 	_tick_acc += delta
 	if _tick_acc > 0.5:
 		_tick_acc = 0.0
