@@ -11,7 +11,7 @@ var _sel_equip: String = ""
 
 class Slot extends Button:
 	var data: Dictionary = {}
-	var icon: Control
+	var item_icon: Control
 	var selected: bool = false
 
 	func _init(d: Dictionary = {}) -> void:
@@ -21,10 +21,10 @@ class Slot extends Button:
 		flat = false
 		text = ""
 		if not d.is_empty():
-			icon = UI.ItemIcon.new(String(d["id"]), 56)
-			icon.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-			icon.position = Vector2(11, 6)
-			add_child(icon)
+			item_icon = UI.ItemIcon.new(String(d["id"]), 56)
+			item_icon.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+			item_icon.position = Vector2(11, 6)
+			add_child(item_icon)
 
 	func _draw() -> void:
 		if data.is_empty():

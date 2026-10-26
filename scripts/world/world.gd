@@ -34,6 +34,7 @@ var enemies: Array = []
 var animals: Array = []
 var spawner: Node = null
 var sites = null
+var death_node: Node = null
 var _site_acc: float = 0.0
 var _dmg_labels: Array = []
 var _dmg_i: int = 0
@@ -126,6 +127,7 @@ func build(from_save: bool) -> void:
 func _build_sites() -> void:
 	sites = preload("res://scripts/world/sites.gd").new()
 	sites.build(self)
+	preload("res://scripts/world/death_cache.gd").spawn_existing(self)
 
 
 func pylon_next() -> int:
@@ -590,6 +592,7 @@ func _process(delta: float) -> void:
 	_site_acc += delta
 	if _site_acc > 0.5 and player:
 		_site_acc = 0.0
+		Game.reveal_area(player.global_position.x, player.global_position.z, 36.0)
 		var pp := Vector2(player.global_position.x, player.global_position.z)
 		for sid in DW.SITES:
 			if not Game.sites_found.has(sid) and pp.distance_to(DW.SITES[sid]["pos"]) < float(DW.SITES[sid]["flat"]) + 12.0:

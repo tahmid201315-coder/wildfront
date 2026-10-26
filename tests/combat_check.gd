@@ -15,14 +15,14 @@ func _ready():
 	Game.state = Game.State.PLAY
 	var p = w.player
 	var WG = preload("res://scripts/world/world_gen.gd")
-	p.place_at(Vector3(0, 8, 156))
+	p.place_at(Vector3(30, 8, 176))
 	for i in 20: await get_tree().physics_frame
 	print("dens: ", w.spawner.dens.size())
 	check(w.spawner.dens.size() > 60, "dens generated (%d)" % w.spawner.dens.size())
 	for t in ["stalker", "brute", "wraith", "sentinel"]:
 		var e = Enemy.new()
 		w.add_child(e)
-		e.setup(t, Data.enemies[t], Vector3(0, WG.height_at(0, 146) + 0.2, 146))
+		e.setup(t, Data.enemies[t], Vector3(30, WG.height_at(30, 166) + 0.2, 166))
 		w.enemies.append(e)
 		Game.health = Game.max_health
 		p.invuln = 0.0
@@ -43,7 +43,7 @@ func _ready():
 		check(not e.alive, "%s dies and drops loot" % t)
 		check(Game.stat("kill:" + t) == 1, "kill stat for %s" % t)
 		for i in 90: await get_tree().physics_frame
-		p.global_position = Vector3(0, WG.height_at(0, 156) + 0.5, 156)
+		p.global_position = Vector3(30, WG.height_at(30, 176) + 0.5, 176)
 		Game.health = Game.max_health
 	# player attack hits enemy in front
 	var e2 = Enemy.new()

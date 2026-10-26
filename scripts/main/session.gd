@@ -12,6 +12,14 @@ const Modal = preload("res://scripts/ui/modal.gd")
 const InventoryPanel = preload("res://scripts/ui/inventory_panel.gd")
 const CraftPanel = preload("res://scripts/ui/craft_panel.gd")
 const StoragePanel = preload("res://scripts/ui/storage_panel.gd")
+const QuestPanel = preload("res://scripts/ui/quest_panel.gd")
+const SkillsPanel = preload("res://scripts/ui/skills_panel.gd")
+const MapPanel = preload("res://scripts/ui/map_panel.gd")
+const LogPanel = preload("res://scripts/ui/log_panel.gd")
+const DialoguePanel = preload("res://scripts/ui/dialogue_panel.gd")
+const EndScreens = preload("res://scripts/ui/end_screens.gd")
+const WG = preload("res://scripts/world/world_gen.gd")
+const DeathCache = preload("res://scripts/world/death_cache.gd")
 
 var world: Node3D
 var hud: Control
@@ -19,6 +27,8 @@ var ui_layer: CanvasLayer
 var loading: Control
 var panels: Dictionary = {}
 var pause_menu: Control
+var defeat: Control
+var ending: Control
 var settings: Control
 var confirm: Control
 var continue_game: bool = false
@@ -123,10 +133,32 @@ func _setup_ui() -> void:
 	ui_layer.add_child(settings)
 	confirm = ConfirmDialog.new()
 	ui_layer.add_child(confirm)
-	for pair in [["inventory", InventoryPanel], ["craft", CraftPanel]]:
+	for pair in [["inventory", InventoryPanel], ["craft", CraftPanel], ["quests", QuestPanel], ["skills", SkillsPanel],
+			["map", MapPanel], ["log", LogPanel], ["dialogue", DialoguePanel]]:
 		var pn: Control = pair[1].new()
 		ui_layer.add_child(pn)
 		panels[pair[0]] = pn
+	panels["quests"].open_skills.connect(func():
+		panels["quests"].close()
+		panels["skills"].open())
+	hud.log_requested.connect(func(id): panels["log"].show_log(id))
+	hud.dialogue_requested.connect(func(id): panels["dialogue"].play(id))
+	defeat = EndScreens.make_defeat(_respawn, func():
+		defeat.force_close()
+		Game.set_state(Game.State.PLAY)
+		quit_to_menu.emit())
+	ui_layer.add_child(defeat)
+	ending = EndScreens.make_ending(func():
+		ending.close()
+		Game.set_state(Game.State.PLAY), func():
+		ending.force_close()
+		Game.set_state(Game.State.PLAY)
+		world.save_now(false)
+		quit_to_menu.emit())
+	ui_layer.add_child(ending)
+	Quests.quest_completed.connect(func(id):
+		if id == "m12":
+			_start_ending())
 	var sp: Control = StoragePanel.new()
 	ui_layer.add_child(sp)
 	hud.storage_requested.connect(func(b): sp.show_for(b))
@@ -162,6 +194,9 @@ func _make_pause() -> Control:
 		col.add_child(UI.button("Resume", func(): m.close(), Vector2(0, 62), true))
 		col.add_child(UI.button("Save Game", func():
 			world.save_now(false), Vector2(0, 58)))
+		col.add_child(UI.button("Skills", func():
+			m.close()
+			panels["skills"].open(), Vector2(0, 58)))
 		col.add_child(UI.button("Settings", func(): settings.open(), Vector2(0, 58)))
 		col.add_child(UI.button("Save and Quit to Menu", func():
 			m.close()
@@ -189,7 +224,48 @@ func _notification(what: int) -> void:
 
 
 func _on_player_died() -> void:
-	pass
+	await get_tree().create_timer(2.0).timeout
+	if world == null or not world.player.dead:
+		return
+	var cache: Dictionary = DeathCache.drop_items(world)
+	var info: Label = defeat.body.find_child("info", true, false)
+	if info:
+		info.text = ("You drop part of your pack at the spot where you fell. Recover it from the Death Cache."
+			if cache.get("items", []).size() > 0 else "You had nothing to drop.")
+		info.text += "\nYou will wake at your last campfire or bedroll."
+	Game.set_state(Game.State.DEFEAT)
+	defeat.is_open = true
+	defeat.visible = true
+
+
+func _respawn() -> void:
+	defeat.is_open = false
+	defeat.visible = false
+	var p: Node3D = world.player
+	var rp: Vector3 = Game.respawn_pos
+	if rp == Vector3.ZERO:
+		var sp: Vector2 = Data.DW.START_POS
+		rp = Vector3(sp.x, 0, sp.y)
+	rp.y = maxf(WG.height_at(rp.x, rp.z), 0.5) + 0.6
+	p.place_at(rp)
+	p.revive()
+	Game.health = Game.max_health * 0.6
+	Game.hunger = maxf(Game.hunger, 50.0)
+	Game.stamina = 100.0
+	Game.temperature = 50.0
+	Game.stats_changed.emit()
+	Game.set_state(Game.State.PLAY)
+	DeathCache.spawn_existing(world)
+	world.save_now(true)
+
+
+func _start_ending() -> void:
+	await get_tree().create_timer(3.0).timeout
+	Sfx.play("ending")
+	Game.set_flag("ending_seen", true)
+	Game.set_state(Game.State.ENDING)
+	ending.is_open = true
+	ending.visible = true
 
 
 func _process(delta: float) -> void:

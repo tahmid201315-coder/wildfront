@@ -82,6 +82,16 @@ func _log(root: Node3D, log_id: String, style: String, local: Vector3, yaw: floa
 	t.setup(log_id, style)
 
 
+func _boss(root: Node3D, bid: String, radius: float) -> void:
+	if Game.bosses_defeated.has(bid):
+		return
+	var e = preload("res://scripts/enemies/boss.gd").new()
+	world.add_child(e)
+	var c := root.global_position
+	e.setup_boss(bid, c, radius)
+	world.enemies.append(e)
+
+
 func _light(root: Node3D, col: Color, local: Vector3, energy: float = 0.8, rng_m: float = 8.0) -> void:
 	var l := OmniLight3D.new()
 	l.light_color = col
@@ -196,6 +206,7 @@ func _k_grove_arena(id, root, b, cols) -> void:
 	_ring_pillars(b, cols, 24.0, 16, 7.0, Color(0.42, 0.4, 0.34), false)
 	b.blob(Vector3(3.0, 0.5, 3.0), Color(0.3, 0.45, 0.28), Vector3(0, 0.1, 0), 0.2, 1)
 	_light(root, Color(0.5, 1.0, 0.6), Vector3(0, 2, 0), 0.5, 18.0)
+	_boss(root, "grove_guardian", 23.0)
 
 
 func _k_elder_oak(id, root, b, cols) -> void:
@@ -272,6 +283,7 @@ func _k_furnace_arena(id, root, b, cols) -> void:
 	_ring_pillars(b, cols, 28.0, 14, 9.0, Color(0.22, 0.2, 0.2), false)
 	b.cyl(5.0, 4.0, 1.0, Color(0.15, 0.12, 0.12), Vector3.ZERO, Vector3.ZERO, 12)
 	_light(root, Color(1.0, 0.45, 0.2), Vector3(0, 3, 0), 1.2, 24.0)
+	_boss(root, "furnace_colossus", 27.0)
 
 
 func _k_station(id, root, b, cols) -> void:
@@ -317,6 +329,7 @@ func _k_core_facility(id, root, b, cols) -> void:
 	b.cyl(1.4, 1.0, 9.0, Color(0.3, 0.34, 0.42), Vector3(0, 1.2, 0), Vector3.ZERO, 8)
 	b.sphere(Vector3(1.6, 1.6, 1.6), Color(0.4, 0.9, 1.0), Vector3(0, 11.0, 0), Vector3.ZERO, 5, 10)
 	_light(root, Color(0.4, 0.9, 1.0), Vector3(0, 10, 0), 1.4, 30.0)
+	_boss(root, "core_architect", 28.0)
 	_log(root, "log_architect", "terminal", Vector3(0, 0, 10), 180)
 	_crate(root, "core_cache1", "treasure", "", "treasure", Vector3(-16, 0, 8), 30)
 	_crate(root, "core_cache2", "cache", "", "cache", Vector3(16, 0, 8), -30)
