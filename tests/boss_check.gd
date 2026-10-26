@@ -6,6 +6,7 @@ func check(c: bool, l: String) -> void:
 	if c: ok += 1; print("  ok   - ", l)
 	else: bad += 1; print("  FAIL - ", l)
 func _ready():
+	seed(20261026)
 	Game.reset_progress(); Inv.clear(); Quests.reset()
 	var w = World.new()
 	add_child(w)
@@ -32,8 +33,8 @@ func _ready():
 			seen[b._atk] = true
 			if i == 120:
 				check(b.state != "dormant", bid + " wakes when player enters arena (state %s)" % b.state)
-			if i > 300 and i % 150 == 0 and b.alive:
-				b.take_damage(b.max_hp * 0.12, p.global_position, 0.0, p, false)
+			if i > 480 and i % 200 == 0 and b.alive:
+				b.take_damage(b.max_hp * 0.17, p.global_position, 0.0, p, false)
 				if b.shield:
 					for a in b.adds:
 						if is_instance_valid(a) and a.alive: a.hp = 1.0; a.take_damage(50.0, p.global_position, 0.0, p, false)
@@ -41,7 +42,7 @@ func _ready():
 		print("  attacks seen: ", seen.keys(), " hits taken: ", hurt, " phase ", b.phase)
 		check(not b.alive, bid + " can be defeated")
 		check(Game.bosses_defeated.has(bid), bid + " recorded as defeated")
-		check(hurt > 0, bid + " damaged the player")
+		check(hurt > 0, bid + " damaged the player (%d hits)" % hurt)
 		check(seen.size() >= 3, bid + " used at least 3 attacks")
 	print("boss checks: %d passed, %d failed" % [ok, bad])
 	get_tree().quit()

@@ -258,7 +258,7 @@ func _do_attack_start(pl: Node3D) -> void:
 		"thorns", "fan":
 			var base := _facing_dir()
 			var n := (5 if phase == 1 else 7) + (2 if phase == 3 else 0)
-			var o := global_position + Vector3(0, center_h, 0)
+			var o := Vector3(global_position.x, pl.global_position.y + 1.1, global_position.z) + base * 2.0
 			for i in n:
 				var a := (float(i) / float(n - 1) - 0.5) * 1.4
 				var dir := base.rotated(Vector3.UP, a)
@@ -286,10 +286,10 @@ func _do_attack_start(pl: Node3D) -> void:
 			_summoned[phase] = true
 		"orbs":
 			var n3 := 10 + phase * 2
-			var o2 := global_position + Vector3(0, center_h, 0)
+			var o2 := Vector3(global_position.x, pl.global_position.y + 1.1, global_position.z)
 			for i in n3:
 				var a4 := TAU * float(i) / float(n3) + randf() * 0.2
-				w.spawn_projectile(o2, Vector3(cos(a4), -0.05, sin(a4)), float(def["dmg"]) * 0.5, false, 12.0, Color(0.5, 0.9, 1.0), self)
+				w.spawn_projectile(o2, Vector3(cos(a4), 0.0, sin(a4)), float(def["dmg"]) * 0.5, false, 12.0, Color(0.5, 0.9, 1.0), self)
 			Sfx.play_at("shot", global_position, 0.5, 80.0)
 		"gravity":
 			Sfx.play_at("wail", global_position, 0.6, 80.0)
