@@ -115,10 +115,19 @@ jobs:
           godot --headless --path . --script res://tests/run_tests.gd 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/unit-tests.log
           if ! grep -qE ", 0 failed" logs/unit-tests.log; then echo "::error::Unit tests failed. See logs/unit-tests.log."; exit 1; fi
 
+      - name: Run scene tests (build, combat, bosses)
+        run: |
+          set -euo pipefail
+          for t in build_check combat_check boss_check; do
+            godot --headless --path . res://tests/${t}.tscn 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/${t}.log
+            if ! grep -qE ", 0 failed" logs/${t}.log; then echo "::error::${t} failed. See logs/${t}.log."; exit 1; fi
+            if grep -q "SCRIPT ERROR" logs/${t}.log; then echo "::error::Script errors in ${t}. See logs/${t}.log."; exit 1; fi
+          done
+
       - name: Run scripted playthrough test
         run: |
           set -euo pipefail
-          godot --headless --path . --script res://tests/playthrough.gd 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/playthrough.log
+          godot --headless --path . res://tests/playthrough.tscn 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/playthrough.log
           if ! grep -qE ", 0 failed" logs/playthrough.log; then echo "::error::Playthrough test failed. See logs/playthrough.log."; exit 1; fi
 
       - name: Export debug APK

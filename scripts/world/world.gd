@@ -35,6 +35,8 @@ var animals: Array = []
 var spawner: Node = null
 var sites = null
 var death_node: Node = null
+var weather: Node3D = null
+var audio_dir = null
 var _site_acc: float = 0.0
 var _dmg_labels: Array = []
 var _dmg_i: int = 0
@@ -127,6 +129,10 @@ func build(from_save: bool) -> void:
 func _build_sites() -> void:
 	sites = preload("res://scripts/world/sites.gd").new()
 	sites.build(self)
+	audio_dir = preload("res://scripts/world/audio_director.gd").new()
+	weather = preload("res://scripts/world/weather.gd").new()
+	add_child(weather)
+	weather.setup(self)
 	preload("res://scripts/world/death_cache.gd").spawn_existing(self)
 
 
@@ -449,6 +455,8 @@ func temperature_offset(p: Vector3) -> float:
 		off -= night * 14.0
 	if reg == "highlands":
 		off -= clampf((WG.height_at(p.x, p.z) - 30.0) * 0.2, 0.0, 12.0)
+	if weather:
+		off += weather.chill_at(p)
 	for w in warm_sources:
 		var d := p.distance_to(w[0])
 		if d < w[1]:
@@ -624,7 +632,11 @@ func _process(delta: float) -> void:
 		"core":
 			fog = 0.0030
 			fcol = Color(0.45, 0.55, 0.72)
-	sky.update(delta, fog, fcol, tint, 0.0)
+	if weather:
+		weather.tick(delta, player, player_region)
+	if audio_dir and Game.is_playing():
+		audio_dir.tick(self, delta)
+	sky.update(delta, fog, fcol, tint, weather.target_overcast if weather else 0.0)
 	_shelter_acc += delta
 	if _shelter_acc > 1.0:
 		_shelter_acc = 0.0

@@ -243,7 +243,7 @@ class Gate extends Interactable:
 		Game.add_xp(80)
 		Sfx.play("gate")
 		Game.toast("The gate grinds open.", "quest")
-		if Game.world:
+		if Game.world and Game.world.hud:
 			Game.world.hud.banner("THE GATE OPENS", "")
 		open = true
 		enabled = false

@@ -349,6 +349,21 @@ func feed_player(amount: float) -> void:
 ## Gives items to the player; anything that does not fit is dropped at their feet (never lost).
 func give_item(id: String, n: int) -> void:
 	var left := Inv.add(id, n)
+	if left > 0 and String(Data.items[id].get("cat", "")) == "quest":
+		# Quest items must never be lost: evict the smallest ordinary stack to make room.
+		var pick := -1
+		for i in Inv.slots.size():
+			var e: Dictionary = Inv.slots[i]
+			if e.is_empty() or String(Data.items[e["id"]].get("cat", "")) == "quest":
+				continue
+			if pick < 0 or int(e.get("n", 1)) < int(Inv.slots[pick].get("n", 1)):
+				pick = i
+		if pick >= 0:
+			var ev: Dictionary = Inv.remove_slot(pick)
+			if world and world.has_method("drop_pickup"):
+				world.drop_pickup(String(ev["id"]), int(ev.get("n", 1)))
+			toast("Pack full: %s set down to make room for a quest item." % Data.item_name(String(ev["id"])), "warn")
+			left = Inv.add(id, left)
 	if left > 0:
 		if world and world.has_method("drop_pickup"):
 			world.drop_pickup(id, left)

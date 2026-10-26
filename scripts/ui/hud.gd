@@ -393,6 +393,13 @@ func _draw_compass(center: Vector2, font: Font) -> void:
 		var a3 := wrapf(ang2 - yaw + PI, 0.0, TAU) - PI
 		var px := center.x + clampf(a3 / (PI * 0.5), -1.0, 1.0) * (w * 0.5 - 8)
 		draw_colored_polygon(PackedVector2Array([Vector2(px, center.y - 14), Vector2(px - 7, center.y - 26), Vector2(px + 7, center.y - 26)]), UI.COL_ACCENT)
+	if Game.waypoint != null:
+		var wd: Vector2 = Vector2(Game.waypoint) - Vector2(player.global_position.x, player.global_position.z)
+		var wa := wrapf(atan2(-wd.x, -wd.y) - yaw + PI, 0.0, TAU) - PI
+		var wx := center.x + clampf(wa / (PI * 0.5), -1.0, 1.0) * (w * 0.5 - 8)
+		draw_colored_polygon(PackedVector2Array([Vector2(wx, center.y - 14), Vector2(wx - 7, center.y - 26), Vector2(wx + 7, center.y - 26)]), Color(1, 0.4, 0.4))
+		var dtxt := "%d m" % int(wd.length())
+		draw_string(font, Vector2(wx - 18, center.y + 36), dtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.6, 0.6))
 	draw_line(Vector2(center.x, center.y + 12), Vector2(center.x, center.y + 20), Color(1, 1, 1, 0.8), 2.0)
 	var reg := String(DW.REGIONS[player.current_region]["name"])
 	var rw := font.get_string_size(reg, HORIZONTAL_ALIGNMENT_CENTER, -1, 17).x
