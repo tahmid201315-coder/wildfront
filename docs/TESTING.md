@@ -45,4 +45,4 @@ Screenshots were taken under software rendering for the menu, HUD, inventory, cr
 
 ## CI
 
-The workflow runs import, the logic suite, the scene tests and the playthrough, then exports the APK. Check the Actions tab for the real status of the latest run; this file does not claim a CI result.
+The workflow runs import, the logic suite, the scene tests and the playthrough, then exports the APK. The run for commit 473ab73 (GitHub Actions run 40418140699) passed every step and uploaded an APK artifact. An earlier run failed on a flaky boss test, which was fixed. The Actions tab is the source of truth for later commits.
