@@ -1,4 +1,4 @@
-name: Android Debug APK (Project Wildlands)
+name: Android Debug APK (Project Starfall)
 
 on:
   push:
@@ -18,7 +18,7 @@ env:
   GODOT_VERSION: "4.3"
   GODOT_RELEASE: "4.3-stable"
   EXPORT_PRESET: "Android Debug"
-  APK_PATH: "build/Project-Wildlands.apk"
+  APK_PATH: "build/Project-Starfall.apk"
   ANDROID_BUILD_TOOLS: "34.0.0"
   ANDROID_PLATFORM: "android-34"
 
@@ -94,7 +94,7 @@ jobs:
           keytool -genkeypair -v -keystore "$KS" -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass "$PW" -keypass "$PW" \
-            -dname "CN=Wildlands Debug,O=Debug,C=US" > /dev/null
+            -dname "CN=Starfall Debug,O=Debug,C=US" > /dev/null
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KS" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$PW" >> "$GITHUB_ENV"
@@ -109,26 +109,16 @@ jobs:
             exit 1
           fi
 
-      - name: Validate project data and run logic tests
+      - name: Run automated test suites
         run: |
           set -euo pipefail
-          godot --headless --path . --script res://tests/run_tests.gd 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/unit-tests.log
-          if ! grep -qE ", 0 failed" logs/unit-tests.log; then echo "::error::Unit tests failed. See logs/unit-tests.log."; exit 1; fi
-
-      - name: Run scene tests (build, combat, bosses)
-        run: |
-          set -euo pipefail
-          for t in build_check combat_check boss_check; do
-            godot --headless --path . res://tests/${t}.tscn 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/${t}.log
+          while read -r t; do
+            [ -z "$t" ] && continue
+            echo "=== ${t} ==="
+            godot --headless --path . res://tests/${t}.tscn 2>&1 | tee logs/${t}.log || true
             if ! grep -qE ", 0 failed" logs/${t}.log; then echo "::error::${t} failed. See logs/${t}.log."; exit 1; fi
             if grep -q "SCRIPT ERROR" logs/${t}.log; then echo "::error::Script errors in ${t}. See logs/${t}.log."; exit 1; fi
-          done
-
-      - name: Run scripted playthrough test
-        run: |
-          set -euo pipefail
-          godot --headless --path . res://tests/playthrough.tscn 2>&1 | grep -v 'mesh_get_surface_count\|Parameter "m" is null' | tee logs/playthrough.log
-          if ! grep -qE ", 0 failed" logs/playthrough.log; then echo "::error::Playthrough test failed. See logs/playthrough.log."; exit 1; fi
+          done < tests/suite.txt
 
       - name: Export debug APK
         run: |
@@ -155,15 +145,15 @@ jobs:
           grep -q "lib/arm64-v8a/" logs/apk-contents.log || fail "arm64-v8a native libraries missing"
           BT="${ANDROID_SDK}/build-tools/${ANDROID_BUILD_TOOLS}"
           "$BT/aapt2" dump badging "${APK_PATH}" > logs/apk-info.log 2>&1 || fail "aapt2 could not read the APK: $(head -c 300 logs/apk-info.log)"
-          grep -q "package: name='com.wildlands.survival'" logs/apk-info.log || fail "Unexpected package name: $(grep -m1 '^package:' logs/apk-info.log)"
+          grep -q "package: name='com.starfall.shatteredsky'" logs/apk-info.log || fail "Unexpected package name: $(grep -m1 '^package:' logs/apk-info.log)"
           "$BT/apksigner" verify "${APK_PATH}" > logs/apk-signature.log 2>&1 || fail "APK signature check failed: $(head -c 300 logs/apk-signature.log)"
           echo "APK checks passed (valid zip, manifest, arm64 libs, package name, signature)."
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4.4.3
         with:
-          name: project-wildlands-debug-apk-${{ github.run_number }}
-          path: build/Project-Wildlands.apk
+          name: project-starfall-debug-apk-${{ github.run_number }}
+          path: build/Project-Starfall.apk
           if-no-files-found: error
           retention-days: 30
 

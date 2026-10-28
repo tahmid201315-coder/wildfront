@@ -1,135 +1,145 @@
 extends Node
-## Versioned, crash-safe local saves (autoload "Save").
-## Write path: serialize -> write save.tmp -> read back & validate -> rotate current to save.bak -> rename tmp to save.json.
+## Three save slots with atomic writes, a rolling backup, validation and versioning.
+## Files: user://save_N.json, user://save_N.bak, user://save_N.tmp. Settings: user://settings.json.
 
-const SAVE_PATH := "user://save.json"
-const TMP_PATH := "user://save.tmp"
-const BAK_PATH := "user://save.bak"
+const SLOTS := 3
 const SETTINGS_PATH := "user://settings.json"
+const REQUIRED := {"save_version": TYPE_INT, "game": TYPE_DICTIONARY}
 
-const REQUIRED_KEYS := {"save_version": TYPE_INT, "game": TYPE_DICTIONARY, "inventory": TYPE_ARRAY,
-	"quests": TYPE_DICTIONARY, "world": TYPE_DICTIONARY}
-
-
-func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists(BAK_PATH)
+var base_dir: String = "user://"   # tests may point this elsewhere
 
 
-## Returns "" when valid, otherwise the reason.
+func path(slot: int, ext: String) -> String:
+	return "%ssave_%d.%s" % [base_dir, slot, ext]
+
+
 func validate(d: Variant) -> String:
 	if typeof(d) != TYPE_DICTIONARY:
 		return "root is not a dictionary"
-	for k in REQUIRED_KEYS:
+	for k in REQUIRED:
 		if not d.has(k):
 			return "missing key " + k
-		var want: int = REQUIRED_KEYS[k]
 		var got := typeof(d[k])
-		if want == TYPE_INT and got == TYPE_FLOAT:
+		if got == TYPE_FLOAT and REQUIRED[k] == TYPE_INT:
 			continue
-		if got != want:
+		if got != REQUIRED[k]:
 			return "wrong type for " + k
-	if int(d["save_version"]) < 1 or int(d["save_version"]) > Data.SAVE_VERSION:
+	if int(d["save_version"]) < 1 or int(d["save_version"]) > Game.SAVE_VERSION:
 		return "unsupported save_version %s" % str(d["save_version"])
 	return ""
 
 
-## Upgrade older save layouts. Version 1 is current; add steps here for future versions.
 func migrate(d: Dictionary) -> Dictionary:
-	var v := int(d.get("save_version", 1))
-	# Example for future: if v < 2: d["world"]["new_key"] = ...; v = 2
-	d["save_version"] = maxi(v, 1)
+	# Version 1 is current. Future layouts get an upgrade step here.
+	d["save_version"] = maxi(int(d.get("save_version", 1)), 1)
 	return d
 
 
-func _read_file(path: String) -> Dictionary:
-	## returns {ok: bool, data: Dictionary, error: String}
-	if not FileAccess.file_exists(path):
-		return {"ok": false, "data": {}, "error": "missing"}
-	var f := FileAccess.open(path, FileAccess.READ)
+func _read(p: String) -> Dictionary:
+	if not FileAccess.file_exists(p):
+		return {"ok": false, "error": "missing"}
+	var f := FileAccess.open(p, FileAccess.READ)
 	if f == null:
-		return {"ok": false, "data": {}, "error": "cannot open (%s)" % error_string(FileAccess.get_open_error())}
+		return {"ok": false, "error": "cannot open"}
 	var text := f.get_as_text()
 	f.close()
 	var parsed: Variant = JSON.parse_string(text)
 	var why := validate(parsed)
 	if why != "":
-		return {"ok": false, "data": {}, "error": why}
-	return {"ok": true, "data": migrate(parsed), "error": ""}
+		return {"ok": false, "error": why}
+	return {"ok": true, "data": migrate(parsed)}
 
 
-## Load the best available save. result: {ok, data, restored_backup, message}
-func load_game() -> Dictionary:
-	var main := _read_file(SAVE_PATH)
+func slot_exists(slot: int) -> bool:
+	return FileAccess.file_exists(path(slot, "json")) or FileAccess.file_exists(path(slot, "bak"))
+
+
+## Returns {ok, data, message, restored_backup}
+func load_slot(slot: int) -> Dictionary:
+	var main := _read(path(slot, "json"))
 	if main["ok"]:
-		return {"ok": true, "data": main["data"], "restored_backup": false, "message": ""}
-	var bak := _read_file(BAK_PATH)
+		return {"ok": true, "data": main["data"], "message": "", "restored_backup": false}
+	var bak := _read(path(slot, "bak"))
 	if bak["ok"]:
-		push_warning("Main save invalid (%s); restored backup." % main["error"])
-		return {"ok": true, "data": bak["data"], "restored_backup": true,
-			"message": "Your latest save was damaged, so the previous backup was loaded."}
-	if FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists(BAK_PATH):
-		return {"ok": false, "data": {}, "restored_backup": false,
-			"message": "Save data is damaged and no backup could be read (%s). Start a New Game to continue." % main["error"]}
-	return {"ok": false, "data": {}, "restored_backup": false, "message": "No saved game found."}
+		return {"ok": true, "data": bak["data"], "message": "Your latest save was damaged; the previous backup was loaded.", "restored_backup": true}
+	if slot_exists(slot):
+		return {"ok": false, "data": {}, "message": "This save is damaged and no backup could be read (%s)." % main["error"], "restored_backup": false}
+	return {"ok": false, "data": {}, "message": "Empty slot.", "restored_backup": false}
 
 
-func write_game(payload: Dictionary) -> bool:
-	payload["save_version"] = Data.SAVE_VERSION
-	payload["saved_unix"] = Time.get_unix_time_from_system()
-	var text := JSON.stringify(payload)
-	var f := FileAccess.open(TMP_PATH, FileAccess.WRITE)
+func write_slot(slot: int, game_data: Dictionary) -> bool:
+	var payload := {"save_version": Game.SAVE_VERSION, "saved_unix": Time.get_unix_time_from_system(), "game": game_data}
+	var f := FileAccess.open(path(slot, "tmp"), FileAccess.WRITE)
 	if f == null:
-		push_error("Save: cannot open temp file (%s)" % error_string(FileAccess.get_open_error()))
+		push_error("Save: cannot open temp file")
 		return false
-	f.store_string(text)
+	f.store_string(JSON.stringify(payload))
 	f.close()
-	# Verify the temp file before it replaces anything valid.
-	var check := _read_file(TMP_PATH)
+	var check := _read(path(slot, "tmp"))
 	if not check["ok"]:
 		push_error("Save: temp file failed validation (%s); keeping old save." % check["error"])
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path(slot, "tmp")))
 		return false
-	var dir := DirAccess.open("user://")
+	var dir := DirAccess.open(base_dir)
 	if dir == null:
 		return false
-	if FileAccess.file_exists(SAVE_PATH):
-		if FileAccess.file_exists(BAK_PATH):
-			dir.remove("save.bak")
-		dir.rename("save.json", "save.bak")
-	var err := dir.rename("save.tmp", "save.json")
+	var jn := "save_%d.json" % slot
+	var bn := "save_%d.bak" % slot
+	if FileAccess.file_exists(path(slot, "json")):
+		if FileAccess.file_exists(path(slot, "bak")):
+			dir.remove(bn)
+		dir.rename(jn, bn)
+	var err := dir.rename("save_%d.tmp" % slot, jn)
 	if err != OK:
-		push_error("Save: rename failed (%s)" % error_string(err))
-		# Try to put the backup back so a valid save still exists.
-		if not FileAccess.file_exists(SAVE_PATH) and FileAccess.file_exists(BAK_PATH):
-			dir.rename("save.bak", "save.json")
+		if not FileAccess.file_exists(path(slot, "json")) and FileAccess.file_exists(path(slot, "bak")):
+			dir.rename(bn, jn)
 		return false
 	return true
 
 
-func delete_save() -> void:
-	var dir := DirAccess.open("user://")
+func delete_slot(slot: int) -> void:
+	var dir := DirAccess.open(base_dir)
 	if dir == null:
 		return
-	for f in ["save.json", "save.bak", "save.tmp"]:
-		if dir.file_exists(f):
-			dir.remove(f)
+	for ext in ["json", "bak", "tmp"]:
+		var n := "save_%d.%s" % [slot, ext]
+		if dir.file_exists(n):
+			dir.remove(n)
+
+
+## Short description for the slot picker: {exists, summary}
+func slot_info(slot: int) -> Dictionary:
+	if not slot_exists(slot):
+		return {"exists": false, "summary": "Empty"}
+	var r := load_slot(slot)
+	if not r["ok"]:
+		return {"exists": true, "summary": "Damaged save"}
+	var g: Dictionary = r["data"]["game"]
+	var secs := int(float(g.get("play_time", 0.0)))
+	return {"exists": true, "summary": "%d/7 fragments   %dh %02dm%s" % [int(g.get("fragments", 0)), secs / 3600, (secs % 3600) / 60, "   Completed" if bool(g.get("completed", false)) else ""]}
 
 
 func save_settings(s: Dictionary) -> void:
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if f == null:
-		push_warning("Could not write settings")
 		return
 	f.store_string(JSON.stringify(s))
 	f.close()
 
 
-func load_settings() -> Dictionary:
+func load_settings(defaults: Dictionary) -> Dictionary:
+	var out := defaults.duplicate(true)
 	if not FileAccess.file_exists(SETTINGS_PATH):
-		return {}
+		return out
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.READ)
 	if f == null:
-		return {}
+		return out
 	var parsed: Variant = JSON.parse_string(f.get_as_text())
 	f.close()
-	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
+	if parsed is Dictionary:
+		for k in defaults:
+			if parsed.has(k) and typeof(parsed[k]) == typeof(defaults[k]):
+				out[k] = parsed[k]
+			elif parsed.has(k) and typeof(defaults[k]) == TYPE_FLOAT and typeof(parsed[k]) == TYPE_INT:
+				out[k] = float(parsed[k])
+	return out
