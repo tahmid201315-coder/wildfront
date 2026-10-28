@@ -160,8 +160,11 @@ func tick(dt: float) -> void:
 	for e in enemies:
 		if is_instance_valid(e) and e.alive:
 			e.tick(dt)
-	if boss != null and is_instance_valid(boss) and boss.alive:
-		boss.tick(dt)
+	if boss != null and is_instance_valid(boss):
+		if boss.alive:
+			boss.tick(dt)
+		elif boss.state == "dying":
+			boss.tick_dying(dt)
 	for p in projectiles:
 		if is_instance_valid(p) and p.alive:
 			p.tick(dt)
@@ -218,6 +221,8 @@ func _contact_damage() -> void:
 func damage_player(amount: float, from_x: float, knock: float = 1.0) -> bool:
 	var d := Game.difficulty()
 	var amt := amount * float(d["enemy_dmg"])
+	if Game.god:
+		return false
 	return player.hurt(amt, from_x, knock)
 
 
@@ -461,8 +466,33 @@ func request_room_change(room: String, entry: String) -> void:
 	pending_entry = entry
 
 
-func spawn_boss(_id: String, _pos: Vector2) -> Node:
-	return null
+func spawn_boss(id: String, pos: Vector2) -> Node:
+	if Game.bosses.has(id) or not BossData.DATA.has(id):
+		return null
+	var b := Boss.new()
+	b.setup(id)
+	b.stage = self
+	b.level = level
+	b.uid = 777
+	b.position = pos
+	entities.add_child(b)
+	hittables.append(b)
+	boss = b
+	return b
+
+
+## Shows story lines through the HUD when present; headless runs just continue.
+func show_lines(lines: Array, done: Callable, title: String = "") -> void:
+	if hud != null and hud.has_method("show_lines"):
+		hud.show_lines(lines, done, title)
+	else:
+		if done.is_valid():
+			done.call()
+
+
+func _after_boss_lines() -> void:
+	if player != null:
+		player.control_lock = false
 
 
 func talk_to(npc_id: String, _src: Node) -> void:

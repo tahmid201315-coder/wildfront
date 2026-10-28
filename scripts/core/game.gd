@@ -58,6 +58,7 @@ var hp: float = 100.0
 var mp: float = 60.0
 var heals_left: int = 3
 var in_boss_fight: bool = false
+var god: bool = false                # test hook: no damage to the player
 
 
 func _ready() -> void:
