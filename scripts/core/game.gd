@@ -20,7 +20,7 @@ const SETTINGS_DEFAULT := {
 	"shake": true, "flash_reduce": false, "particles": 2,      # 0 off/minimal, 1 reduced, 2 full
 	"ui_scale": 1.0, "ctrl_scale": 1.0, "ctrl_opacity": 0.75, "left_handed": false,
 	"difficulty": 1, "text_size": 1, "vibration": true, "high_contrast": false, "hints": true,
-	"quality": 1,
+	"quality": 1, "auto_aim": true, "battery_saver": false, "scarf": 0,
 }
 
 var state: int = State.TITLE
@@ -60,6 +60,9 @@ var hp: float = 100.0
 var mp: float = 60.0
 var heals_left: int = 3
 var in_boss_fight: bool = false
+var ngp: int = 0                     # New Game+ cycle
+var trial: bool = false              # daily trial: nothing is saved
+var run_hits: int = 0                # times Kael was hurt (for flawless boss kills)
 var god: bool = false                # test hook: no damage to the player
 
 
@@ -71,6 +74,11 @@ func _ready() -> void:
 	settings = Save.load_settings(SETTINGS_DEFAULT)
 	enemy_killed.connect(Quests.on_kill)
 	event.connect(Quests.on_event)
+	enemy_killed.connect(Achievements.on_kill)
+	event.connect(Achievements.on_event)
+	progress_changed.connect(Achievements.check)
+	quest_changed.connect(Achievements.check)
+	apply_battery()
 
 
 func _setup_input() -> void:
@@ -158,6 +166,8 @@ func new_progress() -> void:
 	bonus_hp = 0
 	equip_lv = {}
 	purchases = {}
+	ngp = 0
+	trial = false
 	in_boss_fight = false
 	_state_stack.clear()
 	full_restore()
@@ -167,8 +177,68 @@ func skill(id: String) -> int:
 	return int(skills.get(id, 0))
 
 
+const SET_BONUS := {"defense": 0.05, "heavy": 0.10, "light": 0.10}
+const SCARVES := [
+	{"name": "Crimson", "color": Color(0.92, 0.3, 0.22), "ach": ""},
+	{"name": "Gold", "color": Color(1.0, 0.82, 0.3), "ach": "slayer"},
+	{"name": "Azure", "color": Color(0.3, 0.65, 1.0), "ach": "scholar"},
+	{"name": "Violet", "color": Color(0.7, 0.4, 0.95), "ach": "flawless"},
+	{"name": "Emerald", "color": Color(0.3, 0.85, 0.5), "ach": "treasure"},
+	{"name": "Starlight", "color": Color(0.9, 0.97, 1.0), "ach": "star_mender"},
+]
+
+
+func full_set() -> bool:
+	for s in Defs.SLOTS:
+		if not equipped.has(s):
+			return false
+	return true
+
+
+func scarf_unlocked(i: int) -> bool:
+	return i == 0 or SCARVES[i]["ach"] == "" or flag("ach_" + SCARVES[i]["ach"])
+
+
+func scarf_color() -> Color:
+	var i := clampi(int(settings.get("scarf", 0)), 0, SCARVES.size() - 1)
+	return SCARVES[i]["color"] if scarf_unlocked(i) else SCARVES[0]["color"]
+
+
+func haptic(ms: int) -> void:
+	if settings.get("vibration", true) and OS.has_feature("mobile"):
+		Input.vibrate_handheld(ms)
+
+
+func apply_battery() -> void:
+	Engine.max_fps = 30 if settings.get("battery_saver", false) else 0
+
+
+## New Game+: keep Kael's growth, restart the world with tougher enemies.
+func start_new_game_plus() -> void:
+	ngp += 1
+	bosses = {}
+	fragments = 0
+	region_unlocked = 1
+	quests = {}
+	var keep_flags := {}
+	for k in flags:
+		if str(k).begins_with("ach_"):
+			keep_flags[k] = true
+	var keep_stats := {}
+	for k in quest_progress:
+		if str(k).begins_with("stat_"):
+			keep_stats[k] = quest_progress[k]
+	quest_progress = keep_stats
+	flags = keep_flags
+	checkpoint = {"region": "meadows", "level": "meadows_1", "id": "start"}
+	completed = false
+	seen_cutscenes = {}
+	heart_pieces = 0
+	full_restore()
+
+
 func equip_stat(key: String) -> float:
-	var t := 0.0
+	var t: float = float(SET_BONUS.get(key, 0.0)) if full_set() else 0.0
 	for slot_name in equipped:
 		var eid: String = equipped[slot_name]
 		if Defs.EQUIPMENT.has(eid):
@@ -193,7 +263,7 @@ func max_heals() -> int:
 
 
 func light_mult() -> float:
-	return 1.0 + 0.12 * skill("edge") + 0.05 * fragments
+	return 1.0 + 0.12 * skill("edge") + 0.05 * fragments + equip_stat("light")
 
 
 func heavy_mult() -> float:
@@ -217,7 +287,12 @@ func dash_cooldown() -> float:
 
 
 func difficulty() -> Dictionary:
-	return Defs.DIFFICULTY[int(settings["difficulty"])]
+	var d: Dictionary = Defs.DIFFICULTY[int(settings["difficulty"])]
+	if ngp > 0:
+		d = d.duplicate()
+		d["enemy_hp"] = float(d["enemy_hp"]) * (1.0 + 0.5 * ngp)
+		d["enemy_dmg"] = float(d["enemy_dmg"]) * (1.0 + 0.25 * ngp)
+	return d
 
 
 func full_restore() -> void:
@@ -331,7 +406,7 @@ func serialize() -> Dictionary:
 		"skills": skills, "owned": owned.keys(), "equipped": equipped, "quests": quests, "quest_progress": quest_progress,
 		"flags": flags, "checkpoint": checkpoint, "play_time": play_time, "completed": completed, "seen_intro": seen_intro,
 		"seen_cutscenes": seen_cutscenes.keys(), "deaths": deaths, "heart_pieces": heart_pieces, "bonus_hp": bonus_hp,
-		"equip_lv": equip_lv, "purchases": purchases,
+		"equip_lv": equip_lv, "purchases": purchases, "ngp": ngp,
 	}
 
 
@@ -372,6 +447,7 @@ func deserialize(d: Dictionary) -> void:
 	deaths = int(d.get("deaths", 0))
 	heart_pieces = clampi(int(d.get("heart_pieces", 0)), 0, 60)
 	bonus_hp = clampi(int(d.get("bonus_hp", 0)), 0, 200)
+	ngp = clampi(int(d.get("ngp", 0)), 0, 99)
 	equip_lv = {}
 	for k in d.get("equip_lv", {}):
 		if Defs.EQUIPMENT.has(k):
@@ -396,6 +472,8 @@ func apply_setting(key: String, value: Variant) -> void:
 	Save.save_settings(settings)
 	if key in ["master", "music", "sfx", "mute"]:
 		Sfx.apply_volumes()
+	if key == "battery_saver":
+		apply_battery()
 	state_changed.emit(state)
 
 

@@ -31,6 +31,8 @@ func _ready() -> void:
 
 func _amount(n: int) -> int:
 	var lvl: int = int(Game.settings.get("particles", 2))
+	if Game.settings.get("battery_saver", false):
+		lvl = mini(lvl, 1)
 	var q: float = [0.2, 0.5, 1.0][clampi(lvl, 0, 2)]
 	return maxi(int(round(n * q)), 1 if n > 0 else 0)
 

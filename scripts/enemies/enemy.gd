@@ -16,6 +16,7 @@ const DATA := {
 
 var kind: String = "slime"
 var uid: int = 0
+var elite: bool = false
 var hp: float = 20.0
 var max_hp: float = 20.0
 var contact_damage: float = 8.0
@@ -62,6 +63,12 @@ func _ready() -> void:
 	flying = d["flying"]
 	aggro = 300.0 * float(diff["aggro"])
 	home = position
+	if elite:
+		max_hp *= 2.2
+		hp = max_hp
+		contact_damage *= 1.3
+		size *= 1.15
+		modulate = Color(1.25, 1.0, 0.6)
 	z_index = 4
 	facing = -1 if int(position.x) % 2 == 0 else 1
 	match kind:
@@ -137,7 +144,10 @@ func _die() -> void:
 	stage.fx.burst(center(), Color(DATA_COLOR[kind]), 14, 200.0)
 	stage.shake(3.0)
 	Sfx.play("enemy_die")
-	stage.drop_loot(center(), int(DATA[kind]["shards"]), 0.18, 0.16)
+	stage.drop_loot(center(), int(DATA[kind]["shards"]) * (4 if elite else 1), 0.18, 0.16)
+	if elite:
+		Achievements.bump("elites")
+		Game.event.emit("elite")
 	Game.add_xp(int(DATA[kind]["xp"]))
 	Game.enemy_killed.emit(kind)
 	if is_inside_tree():

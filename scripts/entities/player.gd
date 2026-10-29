@@ -501,6 +501,7 @@ func hurt(amount: float, from_x: float, knock: float = 1.0) -> bool:
 	Game.stats_changed.emit()
 	hurt_signal.emit(dmg)
 	invuln_t = Tune.INVULN_TIME
+	Game.run_hits += 1
 	hurt_flash = 0.3
 	var dir := 1.0 if position.x >= from_x else -1.0
 	vel = Vector2(dir * 230.0 * knock, -260.0)
@@ -636,8 +637,20 @@ func _tick_magic(dt: float) -> void:
 	if not cast_done and state_t >= 0.12:
 		cast_done = true
 		var dir := Vector2(facing, 0.0)
+		var from_p := position + Vector2(facing * 16.0, -size.y * 0.55)
+		if Game.settings.get("auto_aim", true):
+			var bd := 460.0
+			for h in stage.hittables:
+				if not is_instance_valid(h) or not h.alive:
+					continue
+				var rel: Vector2 = h.hit_rect().get_center() - from_p
+				if absf(rel.x) > 12.0 and signf(rel.x) != float(facing):
+					continue
+				if rel.length() < bd:
+					bd = rel.length()
+					dir = rel.normalized()
 		var dmg := 16.0 * (1.0 + 0.1 * Game.skill("aether")) + 4.0 * Game.fragments
-		stage.spawn_bolt(position + Vector2(facing * 16.0, -size.y * 0.55), dir, dmg)
+		stage.spawn_bolt(from_p, dir, dmg)
 		Sfx.play("bolt")
 	if state_t >= 0.26:
 		_set_state("normal")

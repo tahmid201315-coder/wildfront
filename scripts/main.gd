@@ -31,12 +31,15 @@ func _ready() -> void:
 	menus.resume.connect(_on_resume)
 	menus.quit_to_title.connect(_on_quit_to_title)
 	menus.retry.connect(_on_retry)
+	menus.ngp_game.connect(_on_ngp)
+	menus.daily_trial.connect(_on_daily)
 	menus.quit_app.connect(func() -> void: get_tree().quit())
 	stage.player_died.connect(_on_player_died)
 	stage.boss_defeated.connect(_on_boss_defeated)
 	stage.request_cutscene.connect(func(id: String) -> void: cutscene.play(id))
 	cutscene.finished.connect(_on_cutscene_finished)
 	Game.apply_setting("master", Game.settings["master"])
+	Game.apply_battery()
 	_to_title()
 
 
@@ -62,6 +65,8 @@ func _start_play() -> void:
 		Game.checkpoint = {"region": "meadows", "level": rid, "id": "start"}
 	stage.change_room(rid, str(cp.get("id", "start")))
 	stage.player.invuln_t = 1.0
+	if not Game.trial and not Game.flag("tut_done") and rid == "meadows_1" and Game.settings.get("hints", true):
+		_tutorial()
 
 
 func _on_new_game(slot: int, diff: int) -> void:
@@ -113,7 +118,7 @@ func _on_resume() -> void:
 
 
 func _on_quit_to_title() -> void:
-	if Game.state != Game.State.TITLE and stage.data != null:
+	if Game.state != Game.State.TITLE and stage.data != null and not Game.trial:
 		stage.autosave()
 	_to_title()
 
@@ -168,6 +173,9 @@ func _on_retry() -> void:
 
 
 func _on_boss_defeated(bid: String) -> void:
+	if Game.trial:
+		_finish_trial(bid)
+		return
 	var cut := ""
 	match bid:
 		"thorn_queen": cut = "reveal1"
@@ -193,3 +201,104 @@ func _finish_game() -> void:
 	var secs := int(Game.play_time)
 	menus.show_victory("Time %dh %02dm    Deaths %d    Level %d    Quests %d" % [secs / 3600, (secs % 3600) / 60, Game.deaths, Game.level, Quests.count_done()])
 	Game.set_state(Game.State.TITLE)
+
+
+# ------------------------------------------------------------------ extras: New Game+, daily trial, tutorial, auto-pause
+func _on_ngp(slot: int) -> void:
+	var r := Save.load_slot(slot)
+	if not r["ok"]:
+		menus.show_title()
+		return
+	Game.deserialize(r["data"]["game"])
+	Game.slot = slot
+	Game.start_new_game_plus()
+	Game.toast.emit("New Game+ %d: guardians and enemies are stronger." % Game.ngp, "good")
+	Achievements.check()
+	Save.write_slot(slot, Game.serialize())
+	_start_play()
+
+
+## Region and RNG seed for a given date; the same for every player on that day.
+static func daily_seed(date: Dictionary) -> Dictionary:
+	var day := int(date["year"]) * 400 + int(date["month"]) * 31 + int(date["day"])
+	return {"region": Defs.REGION_ORDER[day % Defs.REGION_ORDER.size()], "seed": day, "key": "%04d-%02d-%02d" % [int(date["year"]), int(date["month"]), int(date["day"])]}
+
+
+var trial_info: Dictionary = {}
+
+
+func _on_daily() -> void:
+	trial_info = daily_seed(Time.get_date_dict_from_system())
+	var ri: int = Defs.REGION_ORDER.find(trial_info["region"])
+	Game.new_progress()
+	Game.trial = true
+	for a in Game.ABILITY_NAMES:
+		Game.unlock_ability(a)
+	Game.level = 4 + ri * 2
+	Game.skills = {"vitality": mini(ri, 4), "edge": mini(ri, 3), "crusher": mini(ri, 3)}
+	Game.fragments = ri
+	Game.full_restore()
+	Game.play_time = 0.0
+	Game.checkpoint = {"region": trial_info["region"], "level": str(trial_info["region"]) + "_boss", "id": "start"}
+	menus.close_all()
+	stage.visible = true
+	Game.clear_state_stack()
+	Game.set_state(Game.State.PLAY)
+	stage.change_room(str(trial_info["region"]) + "_boss", "start")
+	stage.rng.seed = int(trial_info["seed"])
+	var best: Dictionary = Game.settings.get("daily", {})
+	var line := "Daily Trial %s: %s" % [trial_info["key"], Defs.REGIONS[trial_info["region"]]["name"]]
+	if best.get("date", "") == trial_info["key"]:
+		line += "  (best %.1fs)" % float(best["best"])
+	Game.toast.emit(line, "info")
+
+
+func _finish_trial(bid: String) -> void:
+	var secs := Game.play_time
+	var best: Dictionary = Game.settings.get("daily", {})
+	var prev: float = float(best["best"]) if best.get("date", "") == trial_info.get("key", "") else 1.0e9
+	var text := "Time %.1fs, hits taken %d" % [secs, Game.run_hits]
+	if secs < prev:
+		Game.apply_setting("daily", {"date": trial_info["key"], "best": secs})
+		text += "\nNew best for today!"
+	else:
+		text += "\nBest today: %.1fs" % prev
+	Game.trial = false
+	Game.flags["ach_daily"] = true
+	Game.toast.emit("Achievement: Trial by Starlight", "good")
+	await get_tree().create_timer(3.0, true).timeout
+	menus.show_trial_result(text)
+
+
+var _tut_running := false
+
+
+func _tutorial() -> void:
+	if _tut_running:
+		return
+	_tut_running = true
+	var steps := [
+		"Drag the left side of the screen to move. Tap JUMP; hold it to jump higher.",
+		"Tap ATK three times in a row for a combo. HVY is a slow, strong swing.",
+		"DODGE rolls through attacks. Watch enemies flash before they strike.",
+		"MAGIC fires a bolt that aims at the nearest enemy. HEAL restores health.",
+		"Touch a glowing Starshrine with USE to save and restore your health.",
+	]
+	for t in steps:
+		await get_tree().create_timer(5.0, true).timeout
+		if Game.state != Game.State.PLAY or Game.trial:
+			break
+		Game.toast.emit(t, "info")
+	Game.set_flag("tut_done")
+	_tut_running = false
+
+
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_WINDOW_FOCUS_OUT]:
+		auto_pause()
+
+
+func auto_pause() -> void:
+	if Game.state == Game.State.PLAY and not cutscene.active:
+		Game.push_state(Game.State.PAUSE)
+		menus.show_pause()

@@ -12,8 +12,9 @@ Results from the last local run (Godot 4.3-stable, Linux, headless):
 | test_flow | 28 | 28 passed | real Main scene: title, new game, cutscene skip/advance, pause, every sub-screen, settings, key remap, death, game over, retry, save, continue, corrupt save, touch buttons, finale -> ending -> victory -> credits |
 | test_play | 104 | 104 passed | jump limits vs real physics, variable jump, coyote, buffer, double/wall jump, ladders, moving platforms, combat (combo, heavy, i-frames, dodge, heal, magic), all 8 enemy kinds, items, equipment effects, skills, upgrades, chests, difficulty scaling, quests, shop, save round-trip and sanitising, checkpoints, room transitions, every room exit, scripted solution of every puzzle room |
 | test_fight | 63 | 63 passed | a bot beats each boss 3 times (different seeds) using real attacks |
+| test_extras | 52 | 52 passed | auto-aim, battery saver, achievements, scarves, set bonus, elites, Echo bosses, New Game+, save export/import (including garbage and future-version codes), daily seed rotation, trial isolation, auto-pause |
 
-Total: 480 checks, 0 failures. The tests also found and I fixed real bugs: push blocks were never ticked (block puzzles
+Total: 532 checks, 0 failures. The tests also found and I fixed real bugs: push blocks were never ticked (block puzzles
 were unsolvable), `change_room` overwrote the respawn shrine, a chest could be looted twice, flying bosses made armour too
 punishing (armour reduced to 0.6 damage).
 

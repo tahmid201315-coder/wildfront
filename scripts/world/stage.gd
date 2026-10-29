@@ -475,7 +475,7 @@ func request_room_change(room: String, entry: String) -> void:
 
 
 func spawn_boss(id: String, pos: Vector2) -> Node:
-	if Game.bosses.has(id) or not BossData.DATA.has(id):
+	if (Game.bosses.has(id) and not Game.completed) or not BossData.DATA.has(id):
 		return null
 	var b := Boss.new()
 	b.setup(id)
@@ -518,6 +518,8 @@ func show_text(title: String, text: String) -> void:
 
 
 func autosave() -> bool:
+	if Game.trial:
+		return false
 	return Save.write_slot(Game.slot, Game.serialize())
 
 

@@ -248,7 +248,8 @@ static func _place_enemies(cv: Cv, ctx: Dictionary, n: int, x_min: int, x_max: i
 		var y: int = int(s["y"]) - 1
 		if k == "drone" or k == "wraith":
 			y -= rng.randi_range(2, 4)
-		cv.ent({"t": "enemy", "k": k, "x": x, "y": y, "patrol": 90.0 + 12.0 * tier})
+		var elite: bool = ((tier >= 1 and i == 0 and (x + tier) % 2 == 0) or (tier >= 4 and i == 1 and x % 4 == 0)) and k not in ["drone", "wraith", "stalker"]
+		cv.ent({"t": "enemy", "k": k, "x": x, "y": y, "patrol": 90.0 + 12.0 * tier, "elite": elite})
 
 
 static func _place_items(cv: Cv, ctx: Dictionary, chests: int, journals: int, shrines: int) -> void:

@@ -49,6 +49,7 @@ static func spawn_entity(stage: Stage, e: Dictionary) -> Node:
 			en.stage = stage
 			en.level = stage.level
 			en.patrol = float(e.get("patrol", 120.0))
+			en.elite = bool(e.get("elite", false))
 			stage.entities.add_child(en)
 			stage.enemies.append(en)
 			stage.hittables.append(en)

@@ -9,6 +9,8 @@ signal resume
 signal quit_to_title
 signal retry
 signal quit_app
+signal ngp_game(slot: int)
+signal daily_trial
 
 var root: Control
 var bg: Control
@@ -193,6 +195,14 @@ func show_title() -> void:
 	cont.disabled = not any
 	v.add_child(cont)
 	v.add_child(UI.button("New Game", func() -> void: open_screen(show_slots.bind(true))))
+	var any_done := false
+	for s2 in Save.SLOTS:
+		if Save.slot_info(s2).get("completed", false):
+			any_done = true
+	if any_done:
+		v.add_child(UI.button("New Game+", func() -> void: open_screen(show_ngp_slots)))
+	v.add_child(UI.button("Daily Trial", func() -> void: daily_trial.emit()))
+	v.add_child(UI.button("Achievements", func() -> void: open_screen(show_achievements)))
 	v.add_child(UI.button("Settings", func() -> void: open_screen(show_settings)))
 	v.add_child(UI.button("Credits", func() -> void: open_screen(show_credits)))
 	if not OS.has_feature("web") and not OS.has_feature("mobile") and OS.has_feature("editor"):
@@ -220,6 +230,15 @@ func show_slots(for_new: bool) -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.disabled = (not for_new) and not info["exists"]
 		row.add_child(b)
+		if info["exists"] and not for_new:
+			row.add_child(UI.button("Copy", func() -> void:
+				DisplayServer.clipboard_set(Save.export_text(s))
+				Game.toast.emit("Save code copied to the clipboard.", "good"), 100, 56))
+		if for_new:
+			row.add_child(UI.button("Paste", func() -> void:
+				var r := Save.import_text(s, DisplayServer.clipboard_get())
+				Game.toast.emit(str(r["message"]), "good" if r["ok"] else "bad")
+				show_slots(true), 100, 56))
 		if info["exists"]:
 			var d := UI.button("Delete", func() -> void:
 				open_screen(show_confirm.bind("Delete slot %d permanently?" % (s + 1), func() -> void:
@@ -289,6 +308,7 @@ func show_pause() -> void:
 	v.add_child(UI.button("Skill Tree", func() -> void: open_screen(show_skills)))
 	v.add_child(UI.button("Quests", func() -> void: open_screen(show_quests)))
 	v.add_child(UI.button("Journal", func() -> void: open_screen(show_journal)))
+	v.add_child(UI.button("Achievements", func() -> void: open_screen(show_achievements)))
 	v.add_child(UI.button("Settings", func() -> void: open_screen(show_settings)))
 	v.add_child(UI.button("Save and Quit to Title", func() -> void:
 		close_all()
@@ -347,6 +367,12 @@ func show_inventory() -> void:
 	var v := _column("Equipment", 880)
 	v.add_child(_stat_line())
 	var first: Control = null
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(840, 400)
+	var inv := VBoxContainer.new()
+	inv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(inv)
+	v.add_child(sc)
 	for slot_name in Defs.SLOTS:
 		var cur: String = str(Game.equipped.get(slot_name, ""))
 		var row := VBoxContainer.new()
@@ -376,9 +402,19 @@ func show_inventory() -> void:
 		if cur != "":
 			desc = str(Defs.EQUIPMENT[cur]["desc"])
 		row.add_child(UI.label(desc, 18, UI.DIM))
-		v.add_child(row)
-	v.add_child(UI.label("Abilities: " + (", ".join(PackedStringArray(Game.abilities.keys().map(func(k): return Game.ABILITY_NAMES.get(k, k)))) if not Game.abilities.is_empty() else "none yet"), 20, UI.TEXT))
-	v.add_child(UI.label("Upgrade equipment with Tinka Gearsong using Aether Dust.", 18, UI.DIM))
+		inv.add_child(row)
+	inv.add_child(UI.label("Abilities: " + (", ".join(PackedStringArray(Game.abilities.keys().map(func(k): return Game.ABILITY_NAMES.get(k, k)))) if not Game.abilities.is_empty() else "none yet"), 20, UI.TEXT))
+	inv.add_child(UI.label("Set bonus (all four slots filled): +10% damage, +5% defence. " + ("ACTIVE" if Game.full_set() else "inactive"), 18, UI.GOLD if Game.full_set() else UI.DIM))
+	var sc_i := int(Game.settings.get("scarf", 0))
+	inv.add_child(UI.button("Scarf colour: %s%s (tap to change)" % [Game.SCARVES[sc_i]["name"], "" if Game.scarf_unlocked(sc_i) else " (locked)"], func() -> void:
+		var n := sc_i
+		for k in Game.SCARVES.size():
+			n = (n + 1) % Game.SCARVES.size()
+			if Game.scarf_unlocked(n):
+				break
+		Game.apply_setting("scarf", n)
+		show_inventory(), 0, 48))
+	inv.add_child(UI.label("Upgrade equipment with Tinka Gearsong using Aether Dust.", 18, UI.DIM))
 	var bb := UI.button("Back", back)
 	v.add_child(bb)
 	_focus(first if first != null else bb)
@@ -487,7 +523,9 @@ func show_settings() -> void:
 	play.add_child(UI.check_row("Reduce flashing", bool(S["flash_reduce"]), func(x: bool) -> void: Game.apply_setting("flash_reduce", x)))
 	play.add_child(UI.option_row("Particles", ["Minimal", "Reduced", "Full"], int(S["particles"]), func(i: int) -> void: Game.apply_setting("particles", i)))
 	play.add_child(UI.check_row("Show hints", bool(S["hints"]), func(x: bool) -> void: Game.apply_setting("hints", x)))
-	play.add_child(UI.check_row("Controller vibration", bool(S["vibration"]), func(x: bool) -> void: Game.apply_setting("vibration", x)))
+	play.add_child(UI.check_row("Auto-aim magic bolts", bool(S.get("auto_aim", true)), func(x: bool) -> void: Game.apply_setting("auto_aim", x)))
+	play.add_child(UI.check_row("Battery saver (30 FPS, fewer particles)", bool(S.get("battery_saver", false)), func(x: bool) -> void: Game.apply_setting("battery_saver", x)))
+	play.add_child(UI.check_row("Vibration", bool(S["vibration"]), func(x: bool) -> void: Game.apply_setting("vibration", x)))
 	tabs.add_child(play)
 	var acc := VBoxContainer.new()
 	acc.name = "Display"
@@ -619,6 +657,54 @@ func show_credits_end() -> void:
 	var v := _column("Credits", 640)
 	for l in CREDITS:
 		v.add_child(UI.label(l, 22, UI.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	var b := UI.button("Return to title", func() -> void:
+		close_all()
+		quit_to_title.emit())
+	v.add_child(b)
+	_focus(b)
+
+
+func show_ngp_slots() -> void:
+	_show("ngp_slots", "title")
+	var v := _column("New Game+: choose a finished save", 700)
+	v.add_child(UI.label("Keep your level, skills, gear and money. Guardians return stronger. Your finished save is kept until you choose to overwrite it.", 20, UI.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var first: Control = null
+	for s in Save.SLOTS:
+		var info := Save.slot_info(s)
+		var b := UI.button("Slot %d   %s" % [s + 1, info["summary"]], func() -> void: ngp_game.emit(s), 0, 56)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.disabled = not info.get("completed", false)
+		v.add_child(b)
+		if first == null and not b.disabled:
+			first = b
+	v.add_child(UI.button("Back", back))
+	_focus(first)
+
+
+func show_achievements() -> void:
+	_show("achievements")
+	var v := _column("Achievements  %d/%d" % [Achievements.count(), Achievements.LIST.size()], 860)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(800, 380)
+	var inner := VBoxContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(inner)
+	for id in Achievements.LIST:
+		var a: Dictionary = Achievements.LIST[id]
+		var got := Achievements.has(id)
+		inner.add_child(UI.label("%s %s\n%s" % ["[x]" if got else "[ ]", a["name"], a["desc"]], 20, UI.GOLD if got else UI.DIM))
+	v.add_child(sc)
+	var bb := UI.button("Back", back)
+	v.add_child(bb)
+	_focus(bb)
+
+
+func show_trial_result(text: String) -> void:
+	in_game = false
+	nav.clear()
+	_show("trial_result", "dim")
+	var v := _column("Daily Trial complete", 620)
+	v.add_child(UI.label(text, 24, UI.GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	var b := UI.button("Return to title", func() -> void:
 		close_all()
 		quit_to_title.emit())

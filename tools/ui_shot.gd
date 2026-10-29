@@ -15,6 +15,8 @@ func _ready() -> void:
 	await snap("title")
 	m.menus.show_slots(true)
 	await snap("slots")
+	m.menus.show_achievements()
+	await snap("ach")
 	m.menus.show_difficulty(0)
 	await snap("difficulty")
 	m._on_new_game(0, 1)

@@ -117,12 +117,15 @@ func apply_volumes() -> void:
 const CAPTIONS := {"boss_roar": "[A guardian roars]", "telegraph": "[Warning: attack incoming]", "beam": "[A beam charges]", "erupt": "[The ground erupts]",
 	"hurt": "[Kael is hit]", "checkpoint": "[The shrine hums]", "puzzle": "[Something ancient grinds open]", "door": "[A door grinds]",
 	"void": "[The void rumbles]", "wave": "[A shockwave rolls out]", "arrow": "[An arrow whistles]", "defeat": "[Kael falls]"}
+const HAPTICS := {"hurt": 45, "boss_roar": 90, "enemy_die": 18, "heal": 25, "block": 12, "erupt": 30, "defeat": 120, "puzzle": 40}
 var _caption_cd: float = 0.0
 
 
 func play(n: String, pitch: float = 1.0, vol_db: float = 0.0) -> void:
 	last_played = n
 	play_count += 1
+	if HAPTICS.has(n):
+		Game.haptic(int(HAPTICS[n]))
 	if Game.settings.get("subtitles", false) and CAPTIONS.has(n):
 		var now := Time.get_ticks_msec() / 1000.0
 		if now >= _caption_cd:

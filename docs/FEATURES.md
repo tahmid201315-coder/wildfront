@@ -47,3 +47,18 @@ Volume sliders, mute, screen-shake toggle, flash reduction, particle level, text
 
 ## Platforms
 Keyboard, gamepad, touch. Android debug APK via GitHub Actions.
+
+## Added after the first release
+- **Auto-aim** magic bolts (toggle in Settings) that lock onto the nearest enemy, boss or switch in front of Kael.
+- **Haptics** on hits, boss roars, heals and defeats (Android only; follows the vibration setting).
+- **Battery saver**: 30 FPS cap and fewer particles.
+- **Auto-pause** when the app loses focus or is backgrounded.
+- **Tutorial prompts** on the first visit to the Meadows hub (touch wording), skipped if Hints is off.
+- **15 achievements** with a screen on the title and pause menus; they persist across saves and New Game+.
+- **Cosmetic scarf colours** (6), five of them unlocked by achievements; chosen on the Equipment screen.
+- **Equipment set bonus**: filling all four slots gives +10% damage and +5% defence.
+- **Elite enemies** (golden, 2.2x health, bigger, 4x shards): 12+ placed across the campaign as mini-bosses.
+- **Echo guardians**: after the ending, guardians can be fought again at 1.6x health and faster, for shards and XP.
+- **New Game+**: from a finished save, keep level/skills/gear/money; the world resets and enemies get 50% more health and 25% more damage per cycle.
+- **Daily Trial**: a date-seeded boss fight with all abilities, best time stored locally; nothing is written to your saves.
+- **Save sharing**: copy a slot as a text code to the clipboard and paste it into another slot (validated before anything is written).

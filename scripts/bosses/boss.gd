@@ -53,6 +53,8 @@ var phases_reached: int = 0
 var _death_fx_t: float = 0.0
 var _hit_flash: float = 0.0
 var damage_taken_blocked: int = 0
+var echo: bool = false
+var hits_at_start: int = 0
 
 
 func setup(boss_id: String) -> void:
@@ -65,7 +67,8 @@ func _ready() -> void:
 	flying = cfg["flying"]
 	contact_base = float(cfg["contact"])
 	var diff := Game.difficulty()
-	max_hp = float(cfg["hp"]) * float(diff["enemy_hp"])
+	echo = Game.bosses.has(id) and Game.completed
+	max_hp = float(cfg["hp"]) * float(diff["enemy_hp"]) * (1.6 if echo else 1.0)
 	hp = max_hp
 	z_index = 4
 	var arena: Dictionary = stage.data.meta.get("arena", {})
@@ -169,6 +172,7 @@ func begin_fight() -> void:
 	stage.cam_lock = Rect2(Vector2.ZERO, stage.level.pixel_size())
 	Game.in_boss_fight = true
 	Sfx.play_music("boss")
+	hits_at_start = Game.run_hits
 	_go("intro")
 	stage.player.control_lock = true
 	stage.player.inp = {}
@@ -602,7 +606,7 @@ func _check_phase() -> void:
 	if next_i < phases.size() and frac <= float(phases[next_i]["at"]):
 		phase = next_i
 		phases_reached = phase + 1
-		speed_mul = float(phases[phase]["speed"])
+		speed_mul = float(phases[phase]["speed"]) * (1.15 if echo else 1.0)
 		steps = []
 		cur_attack = ""
 		beam_on = false
@@ -682,25 +686,34 @@ func tick_dying(dt: float) -> void:
 func _finish() -> void:
 	state = "dead"
 	var bid := id
-	Game.bosses[bid] = true
-	Game.set_flag("defeated_" + bid)
-	Game.fragments = mini(Game.fragments + 1, 7)
 	var ri := Defs.REGION_ORDER.find(stage.data.region)
-	Game.region_unlocked = maxi(Game.region_unlocked, mini(ri + 2, 7))
-	Game.add_xp(120 + 40 * ri)
-	Game.add_shards(100 + 40 * ri)
-	Game.skill_points += 1
+	var flawless := Game.run_hits == hits_at_start
+	if echo:
+		Game.add_xp(200 + 60 * ri)
+		Game.add_shards(300 + 60 * ri)
+		Game.event.emit("echo")
+	else:
+		Game.bosses[bid] = true
+		Game.set_flag("defeated_" + bid)
+		Game.fragments = mini(Game.fragments + 1, 7)
+		Game.region_unlocked = maxi(Game.region_unlocked, mini(ri + 2, 7))
+		Game.add_xp(120 + 40 * ri)
+		Game.add_shards(100 + 40 * ri)
+		Game.skill_points += 1
+	if flawless:
+		Game.event.emit("flawless")
 	Game.in_boss_fight = false
 	Game.full_restore()
 	Game.stats_changed.emit()
 	Game.progress_changed.emit()
-	Game.event.emit("boss")
+	if not echo:
+		Game.event.emit("boss")
 	# open the doors, spawn the reward altar
 	for c in stage.data.meta.get("arena", {}).get("gate", []):
 		if stage.level.tile(int(c[0]), int(c[1])) == Tiles.GATE:
 			stage.level.set_tile(int(c[0]), int(c[1]), Tiles.AIR)
 	var reward: String = str(stage.data.meta.get("arena", {}).get("reward", ""))
-	if reward != "":
+	if reward != "" and not echo:
 		var alt := Interactable.create("altar", {"id": "reward", "grant": reward})
 		alt.stage = stage
 		alt.position = Vector2(float(stage.level.w) * 16.0, floor_y)
@@ -709,7 +722,10 @@ func _finish() -> void:
 	stage.cam_lock = null
 	stage.player.control_lock = false
 	Sfx.play_music(Defs.REGIONS[stage.data.region]["music"])
-	Game.toast.emit("%s Fragment recovered (%d/7)" % [Story.FRAGMENT_NAMES[ri], Game.fragments], "good")
+	if echo:
+		Game.toast.emit("Echo defeated. +%d Star Shards" % (300 + 60 * ri), "good")
+	else:
+		Game.toast.emit("%s Fragment recovered (%d/7)" % [Story.FRAGMENT_NAMES[ri], Game.fragments], "good")
 	stage.boss_defeated.emit(bid)
 	stage.autosave()
 	stage.show_lines(Story.BOSSES[bid]["defeat"], Callable(stage, "_after_boss_lines"), cfg["name"])

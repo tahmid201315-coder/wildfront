@@ -11,3 +11,11 @@
 - Only one NPC conversation style (no branching dialogue). Quests are count-based (kill, chests, journals, shards, bosses, shrines).
 - Flying bosses are hit by jumping and air attacks or magic; there is no special platform assist.
 - Debug-signed APK only; no release signing or store listing.
+
+## Requested extras that were NOT done
+- Hand-designed rooms, mini-games (fishing/lantern lighting), per-region enemy variants, hand-made sprite art and composed
+  music need art/design/audio work that code alone cannot honestly provide; only elites and Echo bosses were added for variety.
+- The Daily Trial is local only: there is no online leaderboard and "daily" means the device date.
+- Save sharing uses the clipboard; there is no cloud sync.
+- Haptics, auto-pause on backgrounding and the 30 FPS cap are tested only as far as headless code paths allow; they have
+  not been verified on a real Android device.

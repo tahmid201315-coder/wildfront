@@ -9,7 +9,7 @@ const TUNIC_D := Color(0.1, 0.3, 0.46)
 const TRIM := Color(0.97, 0.85, 0.4)
 const PANTS := Color(0.2, 0.22, 0.34)
 const BOOT := Color(0.38, 0.23, 0.15)
-const SCARF := Color(0.92, 0.3, 0.22)
+var SCARF := Color(0.92, 0.3, 0.22)
 const HAIR := Color(0.36, 0.2, 0.12)
 const STEEL := Color(0.88, 0.94, 1.0)
 const GLOW := Color(0.45, 0.92, 1.0)
@@ -229,6 +229,7 @@ func _line(a: Vector2, b: Vector2, w: float, col: Color, outline: bool = true) -
 
 
 func _draw() -> void:
+	SCARF = Game.scarf_color()
 	if player == null:
 		return
 	var p := player

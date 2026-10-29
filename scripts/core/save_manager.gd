@@ -116,7 +116,7 @@ func slot_info(slot: int) -> Dictionary:
 		return {"exists": true, "summary": "Damaged save"}
 	var g: Dictionary = r["data"]["game"]
 	var secs := int(float(g.get("play_time", 0.0)))
-	return {"exists": true, "summary": "%d/7 fragments   %dh %02dm%s" % [int(g.get("fragments", 0)), secs / 3600, (secs % 3600) / 60, "   Completed" if bool(g.get("completed", false)) else ""]}
+	return {"exists": true, "completed": bool(g.get("completed", false)), "ngp": int(g.get("ngp", 0)), "summary": "%s%d/7 fragments   %dh %02dm%s" % [("NG+%d  " % int(g.get("ngp", 0)) if int(g.get("ngp", 0)) > 0 else ""), int(g.get("fragments", 0)), secs / 3600, (secs % 3600) / 60, "   Completed" if bool(g.get("completed", false)) else ""]}
 
 
 func save_settings(s: Dictionary) -> void:
@@ -143,3 +143,30 @@ func load_settings(defaults: Dictionary) -> Dictionary:
 			elif parsed.has(k) and typeof(defaults[k]) == TYPE_FLOAT and typeof(parsed[k]) == TYPE_INT:
 				out[k] = float(parsed[k])
 	return out
+
+
+## Save sharing: a slot as one line of text (for the clipboard) and the reverse, fully validated.
+func export_text(slot: int) -> String:
+	var r := load_slot(slot)
+	if not r["ok"]:
+		return ""
+	return "STARFALL1:" + Marshalls.utf8_to_base64(JSON.stringify(r["data"]))
+
+
+## Returns {ok, message}. Never writes anything unless the text is a valid save.
+func import_text(slot: int, text: String) -> Dictionary:
+	var t := text.strip_edges()
+	if not t.begins_with("STARFALL1:"):
+		return {"ok": false, "message": "That is not a Starfall save code."}
+	var raw := Marshalls.base64_to_utf8(t.substr(10))
+	if raw == "":
+		return {"ok": false, "message": "The save code is damaged."}
+	var json := JSON.new()
+	if json.parse(raw) != OK:
+		return {"ok": false, "message": "The save code is damaged."}
+	var err := validate(json.data)
+	if err != "":
+		return {"ok": false, "message": "The save code is invalid (%s)." % err}
+	if not write_slot(slot, json.data["game"]):
+		return {"ok": false, "message": "Could not write the save."}
+	return {"ok": true, "message": "Save imported into slot %d." % (slot + 1)}
