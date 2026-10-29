@@ -135,6 +135,9 @@ func tick(dt: float) -> void:
 
 func _go() -> void:
 	cooldown = 1.0
+	if props.get("ending", false):
+		stage.request_cutscene.emit("finale" if not Game.completed else "ending")
+		return
 	Sfx.play("door")
 	stage.request_room_change(str(props["to"]), str(props.get("entry", "start")))
 

@@ -117,7 +117,13 @@ func load_room(d: LevelData, entry: String = "start") -> void:
 
 func spawn_for(entry: String) -> Vector2:
 	var spawns: Dictionary = data.meta.get("spawns", {})
-	var tp: Array = spawns.get(entry, spawns.get("start", [2, 2]))
+	if not spawns.has(entry):
+		# checkpoint ids (shrines) resolve to the shrine's own position
+		for e in data.meta.get("entities", []):
+			if e.get("t") == "i" and e.get("kind") == "checkpoint" and str(e.get("id", "")) == entry:
+				spawns = {entry: [int(e["x"]), int(e["y"])]}
+				break
+	var tp: Array = spawns.get(entry, data.meta.get("spawns", {}).get("start", [2, 2]))
 	return Vector2(tp[0] * Level.T + Level.T * 0.5, (tp[1] + 1) * Level.T)
 
 

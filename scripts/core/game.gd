@@ -51,6 +51,8 @@ var seen_intro: bool = false
 var seen_cutscenes: Dictionary = {}
 var deaths: int = 0
 var heart_pieces: int = 0
+var equip_lv: Dictionary = {}          # equipment id -> upgrade level 0..3 (Tinka)
+var purchases: Dictionary = {}        # shop item id -> times bought
 var bonus_hp: int = 0
 
 # ---- runtime (not saved)
@@ -154,6 +156,8 @@ func new_progress() -> void:
 	deaths = 0
 	heart_pieces = 0
 	bonus_hp = 0
+	equip_lv = {}
+	purchases = {}
 	in_boss_fight = false
 	_state_stack.clear()
 	full_restore()
@@ -168,7 +172,7 @@ func equip_stat(key: String) -> float:
 	for slot_name in equipped:
 		var eid: String = equipped[slot_name]
 		if Defs.EQUIPMENT.has(eid):
-			t += float(Defs.EQUIPMENT[eid]["stats"].get(key, 0.0))
+			t += float(Defs.EQUIPMENT[eid]["stats"].get(key, 0.0)) * (1.0 + 0.25 * float(equip_lv.get(eid, 0)))
 	return t
 
 
@@ -327,6 +331,7 @@ func serialize() -> Dictionary:
 		"skills": skills, "owned": owned.keys(), "equipped": equipped, "quests": quests, "quest_progress": quest_progress,
 		"flags": flags, "checkpoint": checkpoint, "play_time": play_time, "completed": completed, "seen_intro": seen_intro,
 		"seen_cutscenes": seen_cutscenes.keys(), "deaths": deaths, "heart_pieces": heart_pieces, "bonus_hp": bonus_hp,
+		"equip_lv": equip_lv, "purchases": purchases,
 	}
 
 
@@ -367,6 +372,14 @@ func deserialize(d: Dictionary) -> void:
 	deaths = int(d.get("deaths", 0))
 	heart_pieces = clampi(int(d.get("heart_pieces", 0)), 0, 60)
 	bonus_hp = clampi(int(d.get("bonus_hp", 0)), 0, 200)
+	equip_lv = {}
+	for k in d.get("equip_lv", {}):
+		if Defs.EQUIPMENT.has(k):
+			equip_lv[k] = clampi(int(d["equip_lv"][k]), 0, MAX_UPGRADE)
+	purchases = {}
+	for k in d.get("purchases", {}):
+		if SHOP.has(k):
+			purchases[k] = clampi(int(d["purchases"][k]), 0, 99)
 	full_restore()
 
 
@@ -389,3 +402,68 @@ func apply_setting(key: String, value: Variant) -> void:
 func _process(delta: float) -> void:
 	if state == State.PLAY:
 		play_time += delta
+
+
+# ------------------------------------------------------------- shop (Orrin) and upgrades (Tinka)
+const MAX_UPGRADE := 3
+const SHOP := {
+	"heart": {"name": "Heart Tonic", "desc": "+10 maximum health, permanently.", "cost": 120, "step": 80, "max": 3},
+	"tome": {"name": "Skill Tome", "desc": "Grants one skill point.", "cost": 260, "step": 140, "max": 3},
+	"dust": {"name": "Aether Dust x3", "desc": "Material for Tinka's upgrades.", "cost": 60, "step": 20, "max": 99},
+	"refill": {"name": "Star Tonic", "desc": "Fully restores health, magic and heals.", "cost": 25, "step": 0, "max": 99},
+}
+
+
+func shop_price(id: String) -> int:
+	return int(SHOP[id]["cost"]) + int(SHOP[id]["step"]) * int(purchases.get(id, 0))
+
+
+func shop_can_buy(id: String) -> String:
+	if not SHOP.has(id):
+		return "Unknown item"
+	if int(purchases.get(id, 0)) >= int(SHOP[id]["max"]):
+		return "Sold out"
+	if shards < shop_price(id):
+		return "Not enough Star Shards"
+	return ""
+
+
+func shop_buy(id: String) -> bool:
+	if shop_can_buy(id) != "":
+		return false
+	shards -= shop_price(id)
+	purchases[id] = int(purchases.get(id, 0)) + 1
+	match id:
+		"heart": bonus_hp += 10
+		"tome": skill_points += 1
+		"dust": dust += 3
+		"refill": pass
+	if id in ["heart", "refill"]:
+		full_restore()
+	stats_changed.emit()
+	progress_changed.emit()
+	return true
+
+
+func upgrade_cost(id: String) -> int:
+	return 4 + 4 * int(equip_lv.get(id, 0))
+
+
+func upgrade_can(id: String) -> String:
+	if not owned.has(id):
+		return "Not owned"
+	if int(equip_lv.get(id, 0)) >= MAX_UPGRADE:
+		return "Fully upgraded"
+	if dust < upgrade_cost(id):
+		return "Needs %d Aether Dust" % upgrade_cost(id)
+	return ""
+
+
+func upgrade_equipment(id: String) -> bool:
+	if upgrade_can(id) != "":
+		return false
+	dust -= upgrade_cost(id)
+	equip_lv[id] = int(equip_lv.get(id, 0)) + 1
+	stats_changed.emit()
+	progress_changed.emit()
+	return true
