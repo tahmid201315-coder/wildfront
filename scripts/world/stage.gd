@@ -75,7 +75,7 @@ func _ready() -> void:
 
 # ------------------------------------------------------------------ rooms
 func clear_room() -> void:
-	for arr in [enemies, projectiles, pickups, platforms, interactables, hazards_extra]:
+	for arr in [enemies, projectiles, pickups, platforms, interactables, hazards_extra, pushblocks]:
 		for e in arr:
 			if is_instance_valid(e):
 				e.queue_free()
@@ -132,7 +132,6 @@ func change_room(room: String, entry: String) -> void:
 	if d == null:
 		push_warning("missing room " + room)
 		return
-	Game.checkpoint["level"] = room
 	load_room(d, entry)
 	Game.progress_changed.emit()
 
@@ -160,6 +159,9 @@ func tick(dt: float) -> void:
 		if is_instance_valid(pl):
 			pl.tick(dt)
 	player.tick(dt)
+	for pb in pushblocks:
+		if is_instance_valid(pb):
+			pb.tick(dt)
 	for s in interactables:
 		if is_instance_valid(s):
 			s.tick(dt)

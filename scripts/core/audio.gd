@@ -114,9 +114,20 @@ func apply_volumes() -> void:
 
 
 # ------------------------------------------------------------------ SFX
+const CAPTIONS := {"boss_roar": "[A guardian roars]", "telegraph": "[Warning: attack incoming]", "beam": "[A beam charges]", "erupt": "[The ground erupts]",
+	"hurt": "[Kael is hit]", "checkpoint": "[The shrine hums]", "puzzle": "[Something ancient grinds open]", "door": "[A door grinds]",
+	"void": "[The void rumbles]", "wave": "[A shockwave rolls out]", "arrow": "[An arrow whistles]", "defeat": "[Kael falls]"}
+var _caption_cd: float = 0.0
+
+
 func play(n: String, pitch: float = 1.0, vol_db: float = 0.0) -> void:
 	last_played = n
 	play_count += 1
+	if Game.settings.get("subtitles", false) and CAPTIONS.has(n):
+		var now := Time.get_ticks_msec() / 1000.0
+		if now >= _caption_cd:
+			_caption_cd = now + 0.8
+			Game.toast.emit(CAPTIONS[n], "caption")
 	if _players.is_empty():
 		return
 	var key := n

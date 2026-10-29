@@ -191,6 +191,8 @@ func use(p: Player) -> void:
 
 
 func _open_chest() -> void:
+	if used:
+		return
 	used = true
 	Game.set_flag(flag_key())
 	Sfx.play("chest")

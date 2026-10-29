@@ -125,7 +125,34 @@ func _on_player_died() -> void:
 	Sfx.play("defeat")
 
 
+var _music_check := 0.0
+var _combat := false
+
+
+func _update_music(dt: float) -> void:
+	_music_check -= dt
+	if _music_check > 0.0 or Game.state != Game.State.PLAY or stage.data == null:
+		return
+	_music_check = 0.5
+	if Game.in_boss_fight:
+		return
+	var engaged := false
+	for e in stage.enemies:
+		if is_instance_valid(e) and e.alive and e.state not in ["idle", "patrol", "hide"] and e.position.distance_to(stage.player.position) < 420.0:
+			engaged = true
+			break
+	if engaged != _combat and (engaged or _combat_hold <= 0.0):
+		_combat = engaged
+		_combat_hold = 4.0
+		Sfx.play_music("combat" if engaged else (stage.data.music if stage.data.music != "" else Defs.REGIONS[stage.data.region]["music"]))
+	_combat_hold = maxf(_combat_hold - 0.5, 0.0)
+
+
+var _combat_hold := 0.0
+
+
 func _process(dt: float) -> void:
+	_update_music(dt)
 	if death_timer > 0.0 and Game.state == Game.State.PLAY:
 		death_timer -= dt
 		if death_timer <= 0.0:

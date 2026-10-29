@@ -98,7 +98,7 @@ func take_hit(info: Dictionary) -> bool:
 		return false
 	var dmg: float = info["damage"]
 	if not vulnerable and stun_t <= 0.0:
-		dmg *= 0.42
+		dmg *= 0.6
 		damage_taken_blocked += 1
 		stage.fx.number(hit_rect().get_center() + Vector2(0, -40), "Armored", Color(0.7, 0.8, 1.0))
 		Sfx.play("block")
