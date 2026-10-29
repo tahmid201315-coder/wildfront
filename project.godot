@@ -6,6 +6,9 @@ config_version=5
 [application]
 
 config/name="Project Starfall"
+boot_splash/show_image=false
+boot_splash/fullsize=false
+boot_splash/bg_color=Color(0.04, 0.05, 0.14, 1)
 config/description="An offline 2D action-adventure: recover the seven fragments of the Starheart."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
