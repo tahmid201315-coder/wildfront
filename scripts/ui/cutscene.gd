@@ -50,7 +50,7 @@ func _ready() -> void:
 	theme_root.add_child(p)
 	text_label = UI.label("", 26)
 	p.add_child(text_label)
-	hint = UI.label("Tap / press E to continue", 16, UI.DIM, HORIZONTAL_ALIGNMENT_RIGHT)
+	hint = UI.label("Tap to continue", 16, UI.DIM, HORIZONTAL_ALIGNMENT_RIGHT)
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.position = Vector2(-340, -34)
 	theme_root.add_child(hint)

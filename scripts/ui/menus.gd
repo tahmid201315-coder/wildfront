@@ -195,7 +195,7 @@ func show_title() -> void:
 	v.add_child(UI.button("New Game", func() -> void: open_screen(show_slots.bind(true))))
 	v.add_child(UI.button("Settings", func() -> void: open_screen(show_settings)))
 	v.add_child(UI.button("Credits", func() -> void: open_screen(show_credits)))
-	if not OS.has_feature("web") and not OS.has_feature("mobile"):
+	if not OS.has_feature("web") and not OS.has_feature("mobile") and OS.has_feature("editor"):
 		v.add_child(UI.button("Quit", func() -> void: quit_app.emit()))
 	first = cont if any else v.get_child(3)
 	_focus(first)
@@ -506,7 +506,6 @@ func show_settings() -> void:
 	touch.add_child(UI.slider_row("Button size", float(S["ctrl_scale"]), func(x: float) -> void: Game.apply_setting("ctrl_scale", x), 0.6, 1.6, 0.05))
 	touch.add_child(UI.slider_row("Button opacity", float(S["ctrl_opacity"]), func(x: float) -> void: Game.apply_setting("ctrl_opacity", x), 0.2, 1.0, 0.05))
 	touch.add_child(UI.check_row("Left-handed layout", bool(S["left_handed"]), func(x: bool) -> void: Game.apply_setting("left_handed", x)))
-	touch.add_child(UI.check_row("Show touch controls on this device", bool(S.get("force_touch", false)), func(x: bool) -> void: Game.apply_setting("force_touch", x)))
 	tabs.add_child(touch)
 	var keys := GridContainer.new()
 	keys.name = "Keys"
@@ -521,7 +520,10 @@ func show_settings() -> void:
 	keys.add_child(UI.button("Reset keys", func() -> void:
 		reset_keys()
 		show_settings(), 290, 44))
-	tabs.add_child(keys)
+	if not OS.has_feature("mobile") and OS.has_feature("editor"):
+		tabs.add_child(keys)
+	else:
+		keys.queue_free()
 	var bb := UI.button("Back", back)
 	v.add_child(bb)
 	_focus(bb)

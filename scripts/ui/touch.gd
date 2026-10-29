@@ -35,7 +35,7 @@ func _ready() -> void:
 	ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ctrl.draw.connect(_draw_controls)
 	add_child(ctrl)
-	enabled = DisplayServer.is_touchscreen_available() or OS.has_feature("mobile")
+	enabled = true   # mobile-first: on-screen controls are always shown during play
 	Game.state_changed.connect(func(_s: int) -> void: release_all())
 
 
