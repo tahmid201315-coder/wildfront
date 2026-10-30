@@ -14,7 +14,9 @@ Results from the last local run (Godot 4.3-stable, Linux, headless):
 | test_fight | 63 | 63 passed | a bot beats each boss 3 times (different seeds) using real attacks |
 | test_extras | 52 | 52 passed | auto-aim, battery saver, achievements, scarves, set bonus, elites, Echo bosses, New Game+, save export/import (including garbage and future-version codes), daily seed rotation, trial isolation, auto-pause |
 
-Total: 532 checks, 0 failures. The tests also found and I fixed real bugs: push blocks were never ticked (block puzzles
+| test_leak | 9 | 9 passed | regression for the Daily Trial -> Save and Quit -> Continue bug (boss body surviving into other rooms, trial flag surviving), room changes do not accumulate nodes |
+
+Total: 541 checks, 0 failures. The tests also found and I fixed real bugs: push blocks were never ticked (block puzzles
 were unsolvable), `change_room` overwrote the respawn shrine, a chest could be looted twice, flying bosses made armour too
 punishing (armour reduced to 0.6 damage).
 
@@ -29,3 +31,10 @@ punishing (armour reduced to 0.6 damage).
 - No automated test drives a full 49-room physical run; room reachability is proven by the verifier's conservative model,
   whose jump limits were spot-checked against the real physics (gaps up to 5 tiles crossable without abilities, 6 with dash).
 - Audio quality and visual polish are subjective and were not judged by a person.
+
+## Bot play-through (tools/playbot.gd)
+A simple bot (walks right, jumps at walls/gaps, attacks nearby enemies, invulnerable) plays rooms through the real Main scene
+with a real renderer and saves screenshots. On the Meadows rooms it reached exits in some rooms and got "stuck" in others
+(a puzzle gate, a pit, a boss arena after a death in the bot's own flow). These are bot limits, not confirmed game bugs, but the
+screenshots exposed two real UI problems which were fixed: a keyboard-letter prompt ("[E] Enter") on touch devices and tiny,
+low-contrast stats text in the top-right corner. A full human playthrough is still missing.

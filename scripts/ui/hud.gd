@@ -133,16 +133,18 @@ func _draw_hud() -> void:
 	var x := vp.x - 24.0
 
 	draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, 34), "Shards %d" % Game.shards, HORIZONTAL_ALIGNMENT_RIGHT, 300, 22, UI.GOLD)
-	draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, 58), "Dust %d   Fragments %d/7" % [Game.dust, Game.fragments], HORIZONTAL_ALIGNMENT_RIGHT, 300, 16, UI.DIM)
-	draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, 80), "Lv %d  XP %d/%d" % [Game.level, Game.xp, Game.xp_needed()], HORIZONTAL_ALIGNMENT_RIGHT, 300, 14, UI.DIM)
+	var shade := Color(0, 0, 0, 0.55)
+	draw_c.draw_rect(Rect2(x - 250, 40, 262, 52), shade)
+	draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, 62), "Dust %d   Fragments %d/7" % [Game.dust, Game.fragments], HORIZONTAL_ALIGNMENT_RIGHT, 300, 20, Color(0.85, 0.92, 1.0))
+	draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, 86), "Lv %d  XP %d/%d" % [Game.level, Game.xp, Game.xp_needed()], HORIZONTAL_ALIGNMENT_RIGHT, 300, 18, Color(0.85, 0.92, 1.0))
 	# quest tracker
-	var qy := 112.0
+	var qy := 118.0
 	for id in Game.quests:
 		if Game.quests[id] == "active":
 			var q: Dictionary = Story.QUESTS[id]
-			draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, qy), "%s  %d/%d" % [q["title"], int(Game.quest_progress.get(id, 0)), int(q["count"])], HORIZONTAL_ALIGNMENT_RIGHT, 300, 15, Color(0.7, 0.9, 1.0))
-			qy += 20.0
-			if qy > 180.0:
+			draw_c.draw_string(ThemeDB.fallback_font, Vector2(x - 300, qy), "%s  %d/%d" % [q["title"], int(Game.quest_progress.get(id, 0)), int(q["count"])], HORIZONTAL_ALIGNMENT_RIGHT, 300, 18, Color(0.7, 0.9, 1.0))
+			qy += 24.0
+			if qy > 190.0:
 				break
 	# boss bar
 	if boss_shown > 0.01:
@@ -162,7 +164,7 @@ func _draw_hud() -> void:
 			var sp: Vector2 = stage.get_viewport().get_canvas_transform() * (pr["pos"] + Vector2(0, -78))
 			var tw := 30.0 + str(pr["text"]).length() * 10.0
 			draw_c.draw_rect(Rect2(sp.x / sc - tw * 0.5, sp.y / sc - 20, tw, 30), Color(0.04, 0.06, 0.14, 0.85))
-			_txt(Vector2(sp.x / sc - tw * 0.5, sp.y / sc), "[E] " + str(pr["text"]), 17, UI.GOLD, HORIZONTAL_ALIGNMENT_CENTER, tw)
+			_txt(Vector2(sp.x / sc - tw * 0.5, sp.y / sc), ("" if DisplayServer.is_touchscreen_available() or OS.has_feature("mobile") else "[E] ") + str(pr["text"]) + ("  (tap USE)" if DisplayServer.is_touchscreen_available() or OS.has_feature("mobile") else ""), 20, UI.GOLD, HORIZONTAL_ALIGNMENT_CENTER, tw)
 	# toasts
 	var ty := vp.y - 150.0
 	for t in toasts:

@@ -12,6 +12,7 @@ signal quest_changed
 signal boss_changed(visible: bool, name: String, frac: float)
 signal enemy_killed(kind: String)
 signal event(id: String)
+signal saved
 
 const SAVE_VERSION := 1
 

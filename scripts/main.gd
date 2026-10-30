@@ -6,6 +6,7 @@ var hud: Hud
 var touch: TouchControls
 var menus: Menus
 var cutscene: Cutscene
+var overlay: Overlay
 var death_timer := -1.0
 var booted := false
 var ending_started := false
@@ -26,6 +27,8 @@ func _ready() -> void:
 	add_child(menus)
 	cutscene = Cutscene.new()
 	add_child(cutscene)
+	overlay = Overlay.new()
+	add_child(overlay)
 	menus.new_game.connect(_on_new_game)
 	menus.continue_game.connect(_on_continue)
 	menus.resume.connect(_on_resume)
@@ -41,9 +44,17 @@ func _ready() -> void:
 	Game.apply_setting("master", Game.settings["master"])
 	Game.apply_battery()
 	_to_title()
+	if not overlay.instant:
+		menus.visible = false
+		overlay.play_intro()
+		overlay.intro_done.connect(func() -> void: menus.visible = true, CONNECT_ONE_SHOT)
 
 
 func _to_title() -> void:
+	Game.trial = false
+	Game.in_boss_fight = false
+	Game.boss_changed.emit(false, "", 0.0)
+	stage.clear_room()
 	death_timer = -1.0
 	ending_started = false
 	Game.clear_state_stack()
@@ -53,8 +64,12 @@ func _to_title() -> void:
 	menus.show_title()
 
 
-func _start_play() -> void:
+func _start_play(text: String = "Loading") -> void:
 	menus.close_all()
+	await overlay.with_loading(text, _do_start_play)
+
+
+func _do_start_play() -> void:
 	stage.visible = true
 	Game.clear_state_stack()
 	Game.set_state(Game.State.PLAY)
@@ -85,7 +100,7 @@ func _on_new_game(slot: int, diff: int) -> void:
 
 
 func _after_intro(_id: String) -> void:
-	_start_play()
+	await _start_play("Starting your journey")
 	stage.autosave()
 
 
@@ -97,7 +112,7 @@ func _on_continue(slot: int) -> void:
 		return
 	Game.deserialize(r["data"]["game"] if r["data"].has("game") else r["data"])
 	Game.slot = slot
-	_start_play()
+	_start_play("Loading your save")
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -118,6 +133,8 @@ func _on_resume() -> void:
 
 
 func _on_quit_to_title() -> void:
+	if overlay != null and not overlay.instant and Game.state != Game.State.TITLE and not Game.trial:
+		overlay.save_t = 1.1
 	if Game.state != Game.State.TITLE and stage.data != null and not Game.trial:
 		stage.autosave()
 	_to_title()
@@ -215,7 +232,7 @@ func _on_ngp(slot: int) -> void:
 	Game.toast.emit("New Game+ %d: guardians and enemies are stronger." % Game.ngp, "good")
 	Achievements.check()
 	Save.write_slot(slot, Game.serialize())
-	_start_play()
+	_start_play("Loading New Game+")
 
 
 ## Region and RNG seed for a given date; the same for every player on that day.
@@ -228,6 +245,11 @@ var trial_info: Dictionary = {}
 
 
 func _on_daily() -> void:
+	menus.close_all()
+	await overlay.with_loading("Preparing the Daily Trial", _do_daily)
+
+
+func _do_daily() -> void:
 	trial_info = daily_seed(Time.get_date_dict_from_system())
 	var ri: int = Defs.REGION_ORDER.find(trial_info["region"])
 	Game.new_progress()

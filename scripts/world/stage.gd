@@ -81,7 +81,11 @@ func clear_room() -> void:
 				e.queue_free()
 		arr.clear()
 	hittables.clear()
+	if boss != null and is_instance_valid(boss):
+		boss.queue_free()
 	boss = null
+	for c in entities.get_children():
+		c.queue_free()
 	if level != null:
 		level.queue_free()
 		level = null
@@ -520,7 +524,10 @@ func show_text(title: String, text: String) -> void:
 func autosave() -> bool:
 	if Game.trial:
 		return false
-	return Save.write_slot(Game.slot, Game.serialize())
+	var ok := Save.write_slot(Game.slot, Game.serialize())
+	if ok:
+		Game.saved.emit()
+	return ok
 
 
 # ------------------------------------------------------------------ death & checkpoints

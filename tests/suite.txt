@@ -6,3 +6,4 @@ test_flow
 test_play
 test_fight
 test_extras
+test_leak
